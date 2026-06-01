@@ -477,10 +477,10 @@ function apiGet(action) {
   return fetch(API_URL + '?action=' + encodeURIComponent(action), {redirect:'follow'})
     .then(function(r){ return r.json(); });
 }
-// Apps Script не поддерживает CORS для POST — используем GET с data-параметром
+// Apps Script не поддерживает CORS для POST — передаём JSON как URL-параметр
 function apiPost(body) {
-  var encoded = btoa(unescape(encodeURIComponent(JSON.stringify(body))));
-  var url = API_URL + '?data=' + encodeURIComponent(encoded);
+  var json = JSON.stringify(body);
+  var url = API_URL + '?payload=' + encodeURIComponent(json);
   return fetch(url, {redirect:'follow'})
     .then(function(r){ return r.json(); });
 }
