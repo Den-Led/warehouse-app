@@ -437,20 +437,19 @@ hr.div{border:none;border-top:1px solid var(--border);margin:14px 0}
 // ══════════════════════════════════════════════════════════════
 // КОНФИГУРАЦИЯ — замените на URL вашего веб-приложения Apps Script
 // ══════════════════════════════════════════════════════════════
-var API_URL = https://script.google.com/macros/s/AKfycbyY-fGqhvnXxsBqqfSg-i0Yd8YzfCDnf0vJI77TVgG6XOZ5J5rtwS-7PeLpD_pZkJXd/exec;
+var API_URL = 'https://script.google.com/macros/s/AKfycbyY-fGqhvnXxsBqqfSg-i0Yd8YzfCDnf0vJI77TVgG6XOZ5J5rtwS-7PeLpD_pZkJXd/exec';
 
 // ══════════════════════════════════════════════════════════════
 // TELEGRAM WEB APP
 // ══════════════════════════════════════════════════════════════
-var tg = window.Telegram && window.Telegram.WebApp;
-if (tg) {
-  tg.ready();
-  tg.expand();
-  // Применяем цвета из темы Telegram
-  if (tg.colorScheme === 'dark') {
-    document.documentElement.style.setProperty('--surf2', '#1a1f2e');
+var tg = null;
+try {
+  tg = window.Telegram && window.Telegram.WebApp ? window.Telegram.WebApp : null;
+  if (tg) {
+    tg.ready();
+    tg.expand();
   }
-}
+} catch(e) { tg = null; }
 
 // ══════════════════════════════════════════════════════════════
 // STATE
@@ -540,15 +539,19 @@ function navTo(screen) {
   if(screen==='journal' && !stockReady) loadStock();
   if(screen==='orders') openOrders();
   // Кнопка "Назад" в Telegram
-  if(tg) {
-    if(screen==='home'){ tg.BackButton.hide(); }
-    else { tg.BackButton.show(); }
-  }
+  try {
+    if(tg && tg.BackButton) {
+      if(screen==='home'){ tg.BackButton.hide(); }
+      else { tg.BackButton.show(); }
+    }
+  } catch(e) {}
 }
 
-if(tg) {
-  tg.BackButton.onClick(function(){ navTo('home'); });
-}
+try {
+  if(tg && tg.BackButton) {
+    tg.BackButton.onClick(function(){ navTo('home'); });
+  }
+} catch(e) {}
 
 // ══════════════════════════════════════════════════════════════
 // ТАБЫ ЖУРНАЛА
