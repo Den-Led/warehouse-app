@@ -924,7 +924,7 @@ function onGoodsChange(i){
 function buildStockOpts(){
   var s='<option value="">— выберите товар —</option>';
   stockItems.forEach(function(it){
-    s+='<option value="'+esc(it.id)+'" data-name="'+esc(it.name)+'" data-av="'+it.available+'" data-pr="'+it.price+'">'+
+    s+='<option value="'+esc(it.id)+'" data-name="'+esc(it.name)+'" data-av="'+it.available+'" data-pr="'+it.price+'" data-pct="'+(it.percent||0)+'">'+
       esc(it.name)+' ('+it.available+' шт.)'+(it.price>0?' — '+it.price.toFixed(2)+' ₾':'')+
     '</option>';
   });
@@ -978,14 +978,19 @@ function submitOrder(){
     });
 
     Promise.all(bookPromises).then(function(){
-      // Сохраняем строки журнала
-      var rows = items.map(function(item){
+      // Считаем my_percent для каждой позиции: qty * percent товара
+      var rows = results.map(function(r){
+        var stockRow  = r.row;
+        var item      = r.item;
+        var percent   = Number(stockRow.percent) || 0;
+        var myPercent = item.qty * percent;
         return {
           type:'Заказ', operation_id:orderId,
           customer:customer, goods:item.goodsName,
           qty:item.qty, price_per_unit:item.price||0,
           pay_status:payStatus, pay_method:payMethod,
-          delivery:delivery, comment:comment, status:'Активен'
+          delivery:delivery, comment:comment, status:'Активен',
+          my_percent: myPercent
         };
       });
       return sbPost('journal', rows);
