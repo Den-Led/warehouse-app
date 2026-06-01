@@ -435,9 +435,37 @@ hr.div{border:none;border-top:1px solid var(--border);margin:14px 0}
 
 <script>
 // ══════════════════════════════════════════════════════════════
-// КОНФИГУРАЦИЯ — замените на URL вашего веб-приложения Apps Script
+// КОНФИГУРАЦИЯ — Supabase
 // ══════════════════════════════════════════════════════════════
-var API_URL = 'https://script.google.com/macros/s/AKfycbyY-fGqhvnXxsBqqfSg-i0Yd8YzfCDnf0vJI77TVgG6XOZ5J5rtwS-7PeLpD_pZkJXd/exec';
+var SB_URL = 'https://pnwgddczoyvpmzeqikcj.supabase.co';
+var SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBud2dkZGN6b3l2cG16ZXFpa2NqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAzMTgxMTcsImV4cCI6MjA5NTg5NDExN30.YgV9_osTuMtx7FRiboAlJZvtJqO0rRGbiAbpj1ahksc';
+
+function sbHeaders() {
+  return {
+    'apikey': SB_KEY,
+    'Authorization': 'Bearer ' + SB_KEY,
+    'Content-Type': 'application/json',
+    'Prefer': 'return=representation'
+  };
+}
+function sbGet(table, query) {
+  var url = SB_URL + '/rest/v1/' + table + (query ? '?' + query : '');
+  return fetch(url, { headers: sbHeaders() }).then(function(r){ return r.json(); });
+}
+function sbPost(table, body) {
+  return fetch(SB_URL + '/rest/v1/' + table, {
+    method: 'POST',
+    headers: sbHeaders(),
+    body: JSON.stringify(body)
+  }).then(function(r){ return r.json(); });
+}
+function sbPatch(table, query, body) {
+  return fetch(SB_URL + '/rest/v1/' + table + '?' + query, {
+    method: 'PATCH',
+    headers: sbHeaders(),
+    body: JSON.stringify(body)
+  }).then(function(r){ return r.json(); });
+}
 
 // ══════════════════════════════════════════════════════════════
 // TELEGRAM WEB APP
@@ -471,22 +499,10 @@ setStockLoading(true);
 loadStock();
 
 // ══════════════════════════════════════════════════════════════
-// API — все запросы через fetch к Apps Script
+// ЗАГРУЗКА СКЛАДА из Supabase
 // ══════════════════════════════════════════════════════════════
-function apiGet(action) {
-  return fetch(API_URL + '?action=' + encodeURIComponent(action), {redirect:'follow'})
-    .then(function(r){ return r.json(); });
-}
-// Apps Script не поддерживает CORS для POST — передаём JSON как URL-параметр
-function apiPost(body) {
-  var json = JSON.stringify(body);
-  var url = API_URL + '?payload=' + encodeURIComponent(json);
-  return fetch(url, {redirect:'follow'})
-    .then(function(r){ return r.json(); });
-}
-
 function loadStock() {
-  apiGet('getStock')
+  sbGet('stock', 'order=name.asc')
     .then(function(items){
       stockItems = Array.isArray(items) ? items : [];
       stockReady = true;
@@ -501,7 +517,7 @@ function loadStock() {
 function reloadStock() {
   var btn=document.getElementById('btn-refresh-stock');
   if(btn){ btn.style.opacity='.4'; btn.style.pointerEvents='none'; }
-  apiGet('getStock')
+  sbGet('stock', 'order=name.asc')
     .then(function(items){
       stockItems=Array.isArray(items)?items:[]; stockReady=true;
       refreshAllSelects();
@@ -593,8 +609,30 @@ function setStatusFilter(s){
 function openOrders(){
   document.getElementById('orders-count-label').textContent='Загрузка…';
   document.getElementById('orders-list').innerHTML='<div class="empty-state"><span class="ei">⏳</span>Загружаем данные…</div>';
-  apiGet('getJournal')
-    .then(function(entries){ allEntries=entries||[]; renderOrders(); })
+  sbGet('journal', 'order=date.desc')
+    .then(function(rows){
+      // Преобразуем колонки Supabase в формат приложения
+      allEntries = (rows||[]).map(function(r){
+        return {
+          id:             r.operation_id || String(r.id),
+          date:           r.date ? new Date(r.date).toLocaleString('ru-RU',{day:'2-digit',month:'2-digit',year:'2-digit',hour:'2-digit',minute:'2-digit'}) : '',
+          type:           r.type        || '',
+          customer:       r.customer    || '',
+          goods:          r.goods       || '',
+          qty:            Number(r.qty) || 0,
+          price:          Number(r.price_per_unit) || 0,
+          payStatus:      r.pay_status  || '',
+          payMethod:      r.pay_method  || '',
+          delivery:       r.delivery    || '',
+          amount:         Number(r.amount) || 0,
+          transferStatus: r.transfer_status || '',
+          expeditor:      Number(r.expeditor) || 0,
+          comment:        r.comment     || '',
+          status:         r.status      || ''
+        };
+      });
+      renderOrders();
+    })
     .catch(function(e){ toast('Ошибка загрузки','err'); });
 }
 
@@ -737,7 +775,12 @@ function toggleDelivery(orderId,chk){
   if(el){el.textContent=chk.checked?'Доставлен':'Не дост.';el.className='mini-tog-val '+(chk.checked?'yes':'no');}
 }
 function updateOrderField(orderId,f1,v1,f2,v2){
-  apiPost({action:'updateOrderFields',orderId:orderId,field1:f1,val1:v1,field2:f2,val2:v2})
+  var body = {};
+  if(f1==='payStatus')  body.pay_status  = v1;
+  if(f1==='payMethod')  body.pay_method  = v1;
+  if(f1==='delivery')   body.delivery    = v1;
+  if(f2==='payMethod')  body.pay_method  = v2;
+  sbPatch('journal', 'operation_id=eq.'+encodeURIComponent(orderId), body)
     .catch(function(){ toast('Ошибка сохранения','err'); });
 }
 function askComplete(orderId,btn){
@@ -749,12 +792,37 @@ function doCompleteConfirmed(){
   if(!_pendingCompleteId) return;
   var orderId=_pendingCompleteId, btn=_pendingCompleteBtn;
   if(btn){btn.disabled=true;btn.textContent='…';}
-  apiPost({action:'completeOrder',orderId:orderId})
-    .then(function(r){
-      if(r.ok){toast('Заказ завершён','ok');loadStock();openOrders();}
-      else{toast('Ошибка:\n'+r.error,'err');if(btn){btn.disabled=false;btn.textContent='Завершить';}}
+  // 1. Найти все строки заказа, снять бронь со склада
+  sbGet('journal', 'operation_id=eq.'+encodeURIComponent(orderId)+'&type=eq.Заказ')
+    .then(function(rows){
+      var promises = (rows||[]).map(function(row){
+        if(row.status==='Завершён') return Promise.resolve();
+        // Снять бронь и списать с остатка
+        return sbGet('stock', 'name=eq.'+encodeURIComponent(row.goods))
+          .then(function(items){
+            if(!items||!items[0]) return;
+            var item=items[0];
+            var newReserved = Math.max(0,(item.reserved||0)-row.qty);
+            var newTotal    = Math.max(0,(item.total||0)-row.qty);
+            return sbPatch('stock','id=eq.'+encodeURIComponent(item.id),
+              {reserved:newReserved, total:newTotal});
+          });
+      });
+      return Promise.all(promises);
     })
-    .catch(function(e){toast('Ошибка','err');if(btn){btn.disabled=false;btn.textContent='Завершить';}});
+    .then(function(){
+      // Обновить статус всех строк заказа
+      return sbPatch('journal',
+        'operation_id=eq.'+encodeURIComponent(orderId)+'&type=eq.Заказ',
+        {status:'Завершён'});
+    })
+    .then(function(){
+      toast('Заказ завершён','ok'); loadStock(); openOrders();
+    })
+    .catch(function(e){
+      toast('Ошибка','err');
+      if(btn){btn.disabled=false;btn.textContent='Завершить';}
+    });
   _pendingCompleteId=null; _pendingCompleteBtn=null;
 }
 function closePopup(id){document.getElementById(id).classList.add('hidden');}
@@ -818,11 +886,51 @@ function submitOrder(){
   var payStatus=document.getElementById('pay-chk').checked?'Оплачен':'Не оплачен';
   if(payStatus==='Оплачен'&&!payMethod){toast('Выберите способ оплаты','err');return;}
   busy('btn-order',true);
-  apiPost({action:'saveEntry',payload:{type:'Заказ',items:items,customer:customer,payStatus:payStatus,payMethod:payMethod,
-    delivery:document.getElementById('delivery').checked?'Да':'Нет',
-    comment:document.getElementById('order-note').value.trim()}})
-    .then(function(r){busy('btn-order',false);if(r.ok){toast('Заказ сохранён\n'+r.orderId,'ok');resetOrder();loadStock();}else toast('Ошибка:\n'+r.error,'err');})
-    .catch(function(){busy('btn-order',false);toast('Ошибка связи','err');});
+  var delivery = document.getElementById('delivery').checked?'Да':'Нет';
+  var comment  = document.getElementById('order-note').value.trim();
+  var orderId  = generateId('ORD');
+
+  // Проверяем наличие и бронируем
+  var checkPromises = items.map(function(item){
+    return sbGet('stock','name=eq.'+encodeURIComponent(item.goodsName))
+      .then(function(rows){
+        if(!rows||!rows[0]) return {ok:false,error:'"'+item.goodsName+'" не найден на складе'};
+        var row=rows[0];
+        if((row.available||0) < item.qty) return {ok:false,error:'"'+item.goodsName+'": нужно '+item.qty+', доступно '+row.available};
+        return {ok:true,row:row,item:item};
+      });
+  });
+
+  Promise.all(checkPromises).then(function(results){
+    var errors = results.filter(function(r){return !r.ok;}).map(function(r){return r.error;});
+    if(errors.length){busy('btn-order',false);toast(errors.join('\n'),'err');return;}
+
+    // Бронируем
+    var bookPromises = results.map(function(r){
+      return sbPatch('stock','id=eq.'+encodeURIComponent(r.row.id),{
+        available: (r.row.available||0) - r.item.qty,
+        reserved:  (r.row.reserved||0)  + r.item.qty
+      });
+    });
+
+    Promise.all(bookPromises).then(function(){
+      // Сохраняем строки журнала
+      var rows = items.map(function(item){
+        return {
+          type:'Заказ', operation_id:orderId,
+          customer:customer, goods:item.goodsName,
+          qty:item.qty, price_per_unit:item.price||0,
+          pay_status:payStatus, pay_method:payMethod,
+          delivery:delivery, comment:comment, status:'Активен'
+        };
+      });
+      return sbPost('journal', rows);
+    }).then(function(){
+      busy('btn-order',false);
+      toast('Заказ сохранён\n'+orderId,'ok');
+      resetOrder(); loadStock();
+    }).catch(function(e){busy('btn-order',false);toast('Ошибка сохранения','err');});
+  }).catch(function(){busy('btn-order',false);toast('Ошибка связи','err');});
 }
 function resetOrder(){
   document.getElementById('order-list').innerHTML='';orderCount=0;payMethod='';
@@ -840,16 +948,28 @@ function resetOrder(){
 function submitTransfer(){
   var amt=parseFloat(document.getElementById('tr-amount').value);
   if(!amt||amt<=0){toast('Введите сумму','err');return;}
-  apiPost({action:'saveEntry',payload:{type:'Перевод',amount:amt,transferStatus:document.getElementById('tr-done').checked?'Выполнен':'Нет'}})
-    .then(function(r){if(r.ok){toast('Перевод сохранён','ok');document.getElementById('tr-amount').value='';document.getElementById('tr-done').checked=false;}else toast('Ошибка:\n'+r.error,'err');})
-    .catch(function(){toast('Ошибка связи','err');});
+  sbPost('journal',[{
+    type:'Перевод', operation_id:generateId('TRN'),
+    amount:amt,
+    transfer_status:document.getElementById('tr-done').checked?'Выполнен':'Нет',
+    status:'Завершён'
+  }]).then(function(){
+    toast('Перевод сохранён','ok');
+    document.getElementById('tr-amount').value='';
+    document.getElementById('tr-done').checked=false;
+  }).catch(function(){toast('Ошибка связи','err');});
 }
 function submitTrip(){
   var lc=parseFloat(document.getElementById('log-cost').value)||0;
   var ec=parseFloat(document.getElementById('exp-cost').value)||20;
-  apiPost({action:'saveEntry',payload:{type:'Поездка',logisticsCost:lc,expeditorCost:ec}})
-    .then(function(r){if(r.ok){toast('Поездка сохранена','ok');document.getElementById('log-cost').value='';document.getElementById('exp-cost').value='20';}else toast('Ошибка:\n'+r.error,'err');})
-    .catch(function(){toast('Ошибка связи','err');});
+  sbPost('journal',[{
+    type:'Поездка', operation_id:generateId('TRP'),
+    amount:lc, expeditor:ec, status:'Завершён'
+  }]).then(function(){
+    toast('Поездка сохранена','ok');
+    document.getElementById('log-cost').value='';
+    document.getElementById('exp-cost').value='20';
+  }).catch(function(){toast('Ошибка связи','err');});
 }
 
 function addArrItem(isNew){
@@ -910,21 +1030,62 @@ function submitArrival(){
     }
   }
   if(err||!items.length){if(!err)toast('Добавьте хотя бы один товар','err');return;}
-  apiPost({action:'saveEntry',payload:{type:'Завоз',items:items,comment:document.getElementById('arr-note').value.trim()}})
-    .then(function(r){
-      if(r.ok){
-        var msg='Завоз сохранён';if(r.results&&r.results.length)msg+='\n'+r.results.join('\n');
-        toast(msg,'ok');
-        document.getElementById('arr-list').innerHTML='';arrCount=0;addArrItem(false);
-        document.getElementById('arr-note').value='';loadStock();
-      } else toast('Ошибка:\n'+r.error,'err');
-    })
-    .catch(function(){toast('Ошибка связи','err');});
+  var note = document.getElementById('arr-note').value.trim();
+  var delivId = generateId('DEL');
+
+  var promises = items.map(function(item){
+    if(item.isNew){
+      // Добавить новый товар на склад
+      var newId = 'G'+Date.now()+Math.floor(Math.random()*1000);
+      return sbPost('stock',[{
+        id:newId, name:item.goodsName,
+        price:item.price||0, available:item.qty, reserved:0, total:item.qty
+      }]).then(function(){
+        return sbPost('journal',[{
+          type:'Завоз', operation_id:delivId,
+          goods:item.goodsName, qty:item.qty, price_per_unit:item.price||0,
+          comment:note, status:'Завершён'
+        }]);
+      });
+    } else {
+      // Пополнить существующий
+      return sbGet('stock','name=eq.'+encodeURIComponent(item.goodsName))
+        .then(function(rows){
+          if(!rows||!rows[0]) return;
+          var row=rows[0];
+          var updates={available:(row.available||0)+item.qty, total:(row.total||0)+item.qty};
+          if(item.price>0) updates.price=item.price;
+          return sbPatch('stock','id=eq.'+encodeURIComponent(row.id),updates)
+            .then(function(){
+              return sbPost('journal',[{
+                type:'Завоз', operation_id:delivId,
+                goods:item.goodsName, qty:item.qty, price_per_unit:item.price||0,
+                comment:note, status:'Завершён'
+              }]);
+            });
+        });
+    }
+  });
+
+  Promise.all(promises).then(function(){
+    toast('Завоз сохранён','ok');
+    document.getElementById('arr-list').innerHTML='';
+    arrCount=0; addArrItem(false);
+    document.getElementById('arr-note').value='';
+    loadStock();
+  }).catch(function(){toast('Ошибка связи','err');});
 }
 
 // ══════════════════════════════════════════════════════════════
 // HELPERS
 // ══════════════════════════════════════════════════════════════
+function generateId(prefix){
+  var d=new Date();
+  var pad=function(n){return String(n).padStart(2,'0');};
+  return (prefix||'ID')+'-'+
+    String(d.getFullYear()).slice(-2)+pad(d.getMonth()+1)+pad(d.getDate())+'-'+
+    pad(d.getHours())+pad(d.getMinutes())+pad(d.getSeconds());
+}
 function busy(id,on){
   var b=document.getElementById(id);if(!b)return;
   b.disabled=on;
