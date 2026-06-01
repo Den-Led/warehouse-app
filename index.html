@@ -1,0 +1,940 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Склад</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap');
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+:root{
+  --bg:var(--tg-theme-bg-color, #0f1117);
+  --surf:var(--tg-theme-secondary-bg-color, #181c27);
+  --text:var(--tg-theme-text-color, #e8ecf4);
+  --hint:var(--tg-theme-hint-color, #8892aa);
+  --accent:var(--tg-theme-button-color, #4f7eff);
+  --accent-text:var(--tg-theme-button-text-color, #ffffff);
+  --surf2:#1e2334;--border:#2a3047;--border2:#3a4260;
+  --green:#2ecc8a;--amber:#f5a623;--coral:#ff6b6b;--violet:#a78bfa;
+  --text2:#8892aa;--text3:#555f7a;
+  --r:16px;--rs:12px;
+  --nav:80px;
+  --safe-b:env(safe-area-inset-bottom, 0px);
+  --safe-t:env(safe-area-inset-top, 0px);
+}
+html,body{height:100%;overflow:hidden;background:var(--bg)}
+body{font-family:'Manrope',sans-serif;color:var(--text);display:flex;flex-direction:column;font-size:17px}
+
+.screen{display:none;flex:1;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;padding-bottom:calc(var(--nav) + var(--safe-b) + 16px)}
+.screen.vis{display:flex;flex-direction:column}
+.sec{display:none!important}.sec.vis{display:block!important}
+
+/* ── НИЖНЯЯ НАВИГАЦИЯ ────────────────────────────────────── */
+.bottom-nav{
+  display:flex;align-items:stretch;
+  height:calc(var(--nav) + var(--safe-b));
+  padding-bottom:var(--safe-b);
+  background:var(--surf);border-top:1px solid var(--border);
+  flex-shrink:0;z-index:100;
+}
+.nav-btn{
+  flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:5px;border:none;background:transparent;color:var(--text3);
+  font-family:'Manrope',sans-serif;font-size:13px;font-weight:600;
+  cursor:pointer;padding:0;
+}
+.nav-btn .ni{font-size:32px;line-height:1}
+.nav-btn.active{color:var(--accent)}
+
+/* ── PAGE HEADER ─────────────────────────────────────────── */
+.page-hd{display:flex;align-items:center;gap:12px;padding:14px 14px 10px;flex-shrink:0}
+.page-hd-title{font-size:26px;font-weight:800;letter-spacing:-.4px;flex:1}
+.page-hd-sub{font-size:15px;color:var(--text2);margin-top:2px}
+.icon-btn{width:52px;height:52px;background:var(--surf2);border:1.5px solid var(--border);border-radius:var(--rs);color:var(--text2);font-size:24px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.icon-btn:active{background:var(--border)}
+
+/* ── SCROLL AREA ─────────────────────────────────────────── */
+.scroll-area{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:0 14px 10px}
+
+/* ── ГЛАВНЫЙ ЭКРАН ───────────────────────────────────────── */
+#sc-home{padding-bottom:calc(var(--nav) + var(--safe-b))}
+.home-hero{padding:28px 14px 20px;text-align:center}
+.home-logo{width:96px;height:96px;background:var(--accent);border-radius:24px;display:flex;align-items:center;justify-content:center;font-size:48px;margin:0 auto 16px}
+.home-title{font-size:36px;font-weight:800;letter-spacing:-.6px}
+.home-date{font-size:15px;color:var(--text3);margin-top:6px}
+.home-cards{padding:0 14px;display:flex;flex-direction:column;gap:12px}
+.home-card{background:var(--surf);border:1.5px solid var(--border);border-radius:20px;padding:20px 18px;display:flex;align-items:center;gap:16px;cursor:pointer;min-height:100px}
+.home-card:active{opacity:.8}
+.home-card.blue{border-color:rgba(79,126,255,.4);background:rgba(79,126,255,.08)}
+.home-card.green{border-color:rgba(46,204,138,.35);background:rgba(46,204,138,.07)}
+.hc-ico{font-size:44px;flex-shrink:0;width:60px;text-align:center}
+.hc-body{flex:1;min-width:0}
+.hc-title{font-size:21px;font-weight:700;margin-bottom:4px}
+.hc-sub{font-size:15px;color:var(--text2);line-height:1.4}
+.home-card.blue .hc-title{color:var(--accent)}
+.home-card.green .hc-title{color:var(--green)}
+.hc-arr{font-size:28px;color:var(--text3)}
+
+/* ── ТАБЫ ЖУРНАЛА ────────────────────────────────────────── */
+.j-tabs{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;padding:0 14px;margin-bottom:14px;flex-shrink:0}
+.j-tab{background:var(--surf);border:1.5px solid var(--border);border-radius:var(--rs);padding:14px 4px;text-align:center;cursor:pointer;user-select:none}
+.j-tab:active{opacity:.7}
+.j-tab .ti{font-size:28px;margin-bottom:6px}
+.j-tab .tl{font-size:14px;font-weight:600;color:var(--text2)}
+.j-tab.a-blue{border-color:var(--accent);background:rgba(79,126,255,.12)}.j-tab.a-blue .tl{color:var(--accent)}
+.j-tab.a-green{border-color:var(--green);background:rgba(46,204,138,.1)}.j-tab.a-green .tl{color:var(--green)}
+.j-tab.a-amber{border-color:var(--amber);background:rgba(245,166,35,.1)}.j-tab.a-amber .tl{color:var(--amber)}
+.j-tab.a-violet{border-color:var(--violet);background:rgba(167,139,250,.1)}.j-tab.a-violet .tl{color:var(--violet)}
+
+/* ── КАРТОЧКИ / ПОЛЯ ─────────────────────────────────────── */
+.card{background:var(--surf);border:1px solid var(--border);border-radius:var(--r);padding:18px 16px;margin-bottom:12px}
+.ct{font-size:12px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--text3);margin-bottom:14px}
+.field{margin-bottom:16px}.field:last-child{margin-bottom:0}
+label{display:block;font-size:15px;font-weight:600;color:var(--text2);margin-bottom:7px}
+input[type=text],input[type=number],select,textarea{
+  width:100%;background:var(--surf2);border:1.5px solid var(--border);
+  border-radius:var(--rs);color:var(--text);font-family:'Manrope',sans-serif;
+  font-size:17px;padding:15px 16px;outline:none;appearance:none;
+}
+input:focus,select:focus,textarea:focus{border-color:var(--accent)}
+select{
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%238892aa' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 14px center;padding-right:42px;cursor:pointer
+}
+textarea{resize:vertical;min-height:88px}
+
+/* ── ПИЛЛЫ ───────────────────────────────────────────────── */
+.pills{display:flex;flex-wrap:wrap;gap:10px;margin-top:4px}
+.pill{background:var(--surf2);border:1.5px solid var(--border);border-radius:26px;padding:11px 20px;font-size:16px;font-weight:500;color:var(--text2);cursor:pointer}
+.pill:active{opacity:.7}
+.pill.sel{border-color:var(--accent);background:rgba(79,126,255,.15);color:var(--text)}
+
+/* ── ТОГГЛ ───────────────────────────────────────────────── */
+.tog-row{display:flex;align-items:center;justify-content:space-between;padding:15px 0;border-bottom:1px solid var(--border)}
+.tog-row:last-child{border-bottom:none}
+.tog-row label{margin-bottom:0;font-size:17px;color:var(--text);font-weight:500}
+.toggle{position:relative;width:58px;height:32px;flex-shrink:0}
+.toggle input{opacity:0;width:0;height:0}
+.tr{position:absolute;inset:0;background:var(--border2);border-radius:16px;cursor:pointer;transition:background .2s}
+.tr::after{content:'';position:absolute;width:24px;height:24px;background:#fff;border-radius:50%;top:4px;left:4px;transition:transform .2s}
+.toggle input:checked+.tr{background:var(--accent)}.toggle input:checked+.tr::after{transform:translateX(26px)}
+
+/* ── СТРОКИ ТОВАРОВ ──────────────────────────────────────── */
+.item-row{margin-bottom:16px;padding-bottom:16px;border-bottom:1px solid var(--border)}
+.item-row:last-child{border-bottom:none;margin-bottom:0;padding-bottom:0}
+.item-num{font-size:12px;color:var(--text3);font-weight:700;margin-bottom:7px;letter-spacing:.3px;text-transform:uppercase}
+.item-fields{display:grid;grid-template-columns:1fr 100px 46px;gap:8px;align-items:end}
+.item-badge{font-size:13px;font-weight:600;margin-top:7px;grid-column:1/3}
+.item-badge.ok{color:var(--green)}.item-badge.low{color:var(--amber)}.item-badge.no{color:var(--coral)}
+
+/* ── СТРОКИ ЗАВОЗА ───────────────────────────────────────── */
+.arr-row{margin-bottom:16px;padding-bottom:16px;border-bottom:1px solid var(--border)}
+.arr-row:last-child{border-bottom:none;margin-bottom:0;padding-bottom:0}
+.arr-row-grid{display:grid;grid-template-columns:1fr 96px 46px;gap:8px;align-items:end;margin-top:8px}
+.arr-new-grid{display:grid;grid-template-columns:1fr;gap:8px;margin-top:8px}
+.arr-new-sub{display:grid;grid-template-columns:1fr 1fr 46px;gap:8px;margin-top:8px}
+.arr-tag{font-size:11px;font-weight:700;letter-spacing:.5px;color:var(--violet);text-transform:uppercase;margin-bottom:4px}
+.arr-info{font-size:13px;color:var(--text3);margin-top:6px;min-height:18px}
+
+/* ── КНОПКИ ──────────────────────────────────────────────── */
+.btn-rm{width:46px;height:54px;background:transparent;border:1.5px solid var(--border);border-radius:var(--rs);color:var(--text3);font-size:22px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;align-self:end}
+.btn-rm:active{border-color:var(--coral);color:var(--coral)}
+.btn-add{width:100%;background:transparent;border:2px dashed var(--border2);border-radius:var(--rs);color:var(--text2);font-family:'Manrope',sans-serif;font-size:16px;font-weight:600;padding:16px;cursor:pointer;margin-top:12px;display:flex;align-items:center;justify-content:center;gap:8px}
+.btn-add:active{border-color:var(--accent);color:var(--accent)}.btn-add:disabled{opacity:.35;cursor:not-allowed}
+.btn-new{width:100%;background:transparent;border:2px dashed var(--violet);border-radius:var(--rs);color:var(--violet);font-family:'Manrope',sans-serif;font-size:16px;font-weight:600;padding:16px;cursor:pointer;margin-top:10px;display:flex;align-items:center;justify-content:center;gap:8px}
+.btn-new:active{background:rgba(167,139,250,.1)}
+.btn-sub{width:100%;border:none;border-radius:var(--r);color:#fff;font-family:'Manrope',sans-serif;font-size:19px;font-weight:700;padding:21px;cursor:pointer;margin-top:12px;display:flex;align-items:center;justify-content:center;gap:8px}
+.btn-sub:active{transform:scale(.98)}.btn-sub:disabled{opacity:.5}
+.btn-sub.blue{background:var(--accent)}.btn-sub.green{background:#1fa86d}
+.btn-sub.amber{background:#c47a10}.btn-sub.violet{background:#7c3aed}
+
+/* ── ФИЛЬТРЫ ЗАКАЗОВ ─────────────────────────────────────── */
+.filter-wrap{padding:0 14px;flex-shrink:0}
+.filter-bar{display:flex;gap:8px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;padding-bottom:4px;margin-bottom:10px}
+.filter-bar::-webkit-scrollbar{display:none}
+.fbtn{background:var(--surf);border:1.5px solid var(--border);border-radius:26px;padding:11px 18px;font-family:'Manrope',sans-serif;font-size:15px;font-weight:600;color:var(--text2);cursor:pointer;white-space:nowrap;flex-shrink:0}
+.fbtn:active{opacity:.7}
+.fbtn.on-blue{border-color:var(--accent);background:rgba(79,126,255,.15);color:var(--accent)}
+.fbtn.on-green{border-color:var(--green);background:rgba(46,204,138,.12);color:var(--green)}
+.fbtn.on-amber{border-color:var(--amber);background:rgba(245,166,35,.12);color:var(--amber)}
+.fbtn.on-violet{border-color:var(--violet);background:rgba(167,139,250,.12);color:var(--violet)}
+.status-bar{display:flex;gap:8px;margin-bottom:16px}
+.sbtn{flex:1;background:var(--surf);border:1.5px solid var(--border);border-radius:var(--rs);padding:14px 8px;font-family:'Manrope',sans-serif;font-size:15px;font-weight:600;color:var(--text2);cursor:pointer;text-align:center}
+.sbtn:active{opacity:.7}.sbtn.on{border-color:var(--accent);background:rgba(79,126,255,.12);color:var(--accent)}
+
+/* ── КАРТОЧКА ЗАКАЗА ─────────────────────────────────────── */
+.op-card{background:var(--surf);border:1px solid var(--border);border-radius:var(--r);padding:14px 14px;margin-bottom:12px}
+.op-card-inner{display:grid;grid-template-columns:1fr 120px;gap:12px;align-items:stretch}
+.op-left{min-width:0;display:flex;flex-direction:column;justify-content:space-between}
+.op-right{display:flex;flex-direction:column;align-items:flex-start;justify-content:space-between;padding-left:12px;border-left:1px solid var(--border)}
+.op-customer{font-size:18px;font-weight:700;margin-bottom:5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.op-goods-list{display:flex;flex-direction:column;gap:4px;margin-bottom:5px}
+.op-goods-row{display:grid;grid-template-columns:1fr auto auto;gap:6px;align-items:center}
+.op-goods-name{font-size:15px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.op-goods-qty{font-size:14px;color:var(--text2);white-space:nowrap}
+.op-goods-sum{font-size:15px;font-weight:600;color:var(--amber);white-space:nowrap;text-align:right}
+.op-divider{border:none;border-top:1px solid var(--border);margin:7px 0}
+.op-bottom{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.op-total-label{font-size:11px;color:var(--text2)}
+.op-total-val{font-size:20px;font-weight:800;letter-spacing:-.3px}
+.op-meta-row{display:flex;align-items:center;gap:5px;flex-wrap:wrap;margin-left:4px}
+.op-id{font-size:11px;color:var(--text3)}
+.op-date{font-size:11px;color:var(--text3);white-space:nowrap}
+.op-type-inline{font-size:10px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;padding:2px 8px;border-radius:10px;flex-shrink:0}
+.op-type-inline.order{background:rgba(79,126,255,.15);color:var(--accent)}
+.op-type-badge{font-size:11px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;padding:4px 10px;border-radius:20px;flex-shrink:0}
+.op-type-badge.transfer{background:rgba(46,204,138,.12);color:var(--green)}
+.op-type-badge.trip{background:rgba(245,166,35,.12);color:var(--amber)}
+.op-type-badge.arrival{background:rgba(167,139,250,.12);color:var(--violet)}
+.op-toggls{display:flex;flex-direction:row;gap:12px;align-items:flex-start;width:100%;margin-bottom:10px}
+.mini-tog{display:flex;flex-direction:column;align-items:center;gap:4px}
+.mini-tog-label{font-size:11px;font-weight:700;color:var(--text3);letter-spacing:.4px;text-transform:uppercase}
+.mini-toggle{position:relative;width:50px;height:28px}
+.mini-toggle input{opacity:0;width:0;height:0}
+.mtr{position:absolute;inset:0;background:var(--border2);border-radius:14px;cursor:pointer;transition:background .2s}
+.mtr::after{content:'';position:absolute;width:20px;height:20px;background:#fff;border-radius:50%;top:4px;left:4px;transition:transform .2s}
+.mini-toggle input:checked+.mtr{background:var(--green)}.mini-toggle input:checked+.mtr::after{transform:translateX(22px)}
+.mini-tog-val{font-size:12px;font-weight:700;text-align:center}
+.mini-tog-val.yes{color:var(--green)}.mini-tog-val.no{color:var(--text2)}
+.mini-tog-pay-method{font-size:12px;font-weight:600;color:var(--green);text-align:center;line-height:1.2}
+.btn-complete{background:transparent;border:1.5px solid var(--accent);border-radius:var(--rs);color:var(--accent);font-family:'Manrope',sans-serif;font-size:13px;font-weight:700;padding:10px 0;width:100%;cursor:pointer;text-align:center;display:block}
+.btn-complete:active{background:var(--accent);color:#fff}.btn-complete:disabled{opacity:.4}
+.op-status-done{font-size:11px;font-weight:700;color:var(--green);background:rgba(46,204,138,.1);border:1px solid rgba(46,204,138,.25);border-radius:10px;padding:5px 7px;text-align:center;line-height:1.3}
+.op-card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:8px}
+.op-amount{font-size:28px;font-weight:800;letter-spacing:-.5px;margin:5px 0 8px}
+.op-tr-status.yes{color:var(--green)}.op-tr-status.no{color:var(--coral)}
+.empty-state{text-align:center;padding:60px 20px;color:var(--text3);font-size:16px}
+.empty-state .ei{font-size:52px;margin-bottom:14px;opacity:.5;display:block}
+
+/* ── ПОПАП (снизу, как в нативных приложениях) ───────────── */
+.popup-overlay{position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:1000;display:flex;align-items:flex-end}
+.popup-overlay.hidden{display:none}
+.popup{background:var(--surf);border-radius:22px 22px 0 0;padding:26px 18px calc(26px + var(--safe-b));width:100%;animation:slideUp .22s ease}
+@keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
+.popup-handle{width:36px;height:4px;background:var(--border2);border-radius:2px;margin:0 auto 20px}
+.popup-title{font-size:22px;font-weight:700;margin-bottom:8px}
+.popup-sub{font-size:16px;color:var(--text2);margin-bottom:22px;line-height:1.5}
+.popup-btns{display:flex;flex-direction:column;gap:10px}
+.popup-btn{width:100%;border:none;border-radius:var(--rs);padding:18px;font-family:'Manrope',sans-serif;font-size:17px;font-weight:600;cursor:pointer}
+.popup-btn:active{opacity:.8}
+.popup-btn.primary{background:var(--accent);color:#fff}
+.popup-btn.success{background:#1fa86d;color:#fff}
+.popup-btn.cancel{background:var(--surf2);color:var(--text2)}
+.popup-btn.danger{background:rgba(255,107,107,.12);color:var(--coral)}
+
+/* ── ТОСТ ────────────────────────────────────────────────── */
+.toast{position:fixed;bottom:calc(var(--nav) + var(--safe-b) + 14px);left:14px;right:14px;transform:translateY(20px);opacity:0;background:var(--surf);border:1px solid var(--border2);border-radius:var(--r);padding:16px 20px;font-size:16px;font-weight:600;text-align:center;z-index:2000;transition:all .3s ease;pointer-events:none}
+.toast.show{transform:translateY(0);opacity:1}
+.toast.ok{border-color:var(--green);color:var(--green)}.toast.err{border-color:var(--coral);color:var(--coral)}
+.spin{width:22px;height:22px;border:2.5px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:rot .7s linear infinite}
+@keyframes rot{to{transform:rotate(360deg)}}
+@keyframes fadeIn{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:translateY(0)}}
+.anim{animation:fadeIn .2s ease}
+hr.div{border:none;border-top:1px solid var(--border);margin:14px 0}
+.stock-load-msg{display:flex;align-items:center;gap:10px;padding:10px 0;color:var(--text2);font-size:15px}
+</style>
+</head>
+<body>
+
+<!-- ══ ГЛАВНЫЙ ЭКРАН ══════════════════════════════════════════ -->
+<div class="screen vis" id="sc-home">
+  <div class="home-hero">
+    <div class="home-logo">🏭</div>
+    <div class="home-title">Склад</div>
+    <div class="home-date" id="home-date"></div>
+  </div>
+  <div class="home-cards">
+    <div class="home-card blue" onclick="navTo('journal')">
+      <div class="hc-ico">📋</div>
+      <div class="hc-body">
+        <div class="hc-title">Журнал операций</div>
+        <div class="hc-sub">Заказы, переводы, поездки, завоз</div>
+      </div>
+      <div class="hc-arr">›</div>
+    </div>
+    <div class="home-card green" onclick="navTo('orders')">
+      <div class="hc-ico">📊</div>
+      <div class="hc-body">
+        <div class="hc-title">Заказы</div>
+        <div class="hc-sub">Просмотр, статусы, фильтры</div>
+      </div>
+      <div class="hc-arr">›</div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ ЖУРНАЛ ═════════════════════════════════════════════════ -->
+<div class="screen" id="sc-journal">
+  <div class="page-hd">
+    <div>
+      <div class="page-hd-title">Журнал</div>
+    </div>
+    <button class="icon-btn" id="btn-refresh-stock" onclick="reloadStock()" title="Обновить склад">↻</button>
+  </div>
+  <div class="j-tabs">
+    <div class="j-tab" id="t-order"    onclick="go('order')">   <div class="ti">📦</div><div class="tl">Заказ</div></div>
+    <div class="j-tab" id="t-transfer" onclick="go('transfer')"><div class="ti">💸</div><div class="tl">Перевод</div></div>
+    <div class="j-tab" id="t-trip"     onclick="go('trip')">    <div class="ti">🚚</div><div class="tl">Поездка</div></div>
+    <div class="j-tab" id="t-arrival"  onclick="go('arrival')"> <div class="ti">📥</div><div class="tl">Завоз</div></div>
+  </div>
+  <div class="scroll-area">
+
+    <div class="sec" id="s-order">
+      <div class="card">
+        <div class="ct">Позиции заказа</div>
+        <div class="field" style="margin-bottom:16px">
+          <label>Имя заказчика</label>
+          <input type="text" id="order-customer" placeholder="Введите имя…">
+        </div>
+        <div class="stock-load-msg" id="stock-loading" style="display:none">
+          <div class="spin" style="width:16px;height:16px;border-width:2px;border-color:var(--border2);border-top-color:var(--accent)"></div>
+          Загружаем товары…
+        </div>
+        <div id="order-list"></div>
+        <button class="btn-add" id="btn-add-o" onclick="addOrderItem()">+ Добавить позицию</button>
+      </div>
+      <div class="card">
+        <div class="ct">Оплата</div>
+        <div class="tog-row">
+          <label>Оплачен</label>
+          <label class="toggle"><input type="checkbox" id="pay-chk" onchange="togPay()"><span class="tr"></span></label>
+        </div>
+        <div id="pay-method" style="display:none;margin-top:14px">
+          <label>Способ оплаты</label>
+          <div class="pills" id="pay-pills">
+            <div class="pill" onclick="pickPill(this)" data-v="Оплатили Дену">Оплатили Дену</div>
+            <div class="pill" onclick="pickPill(this)" data-v="Оплатили Яне">Оплатили Яне</div>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="ct">Доставка и комментарий</div>
+        <div class="tog-row">
+          <label>Доставка</label>
+          <label class="toggle"><input type="checkbox" id="delivery"><span class="tr"></span></label>
+        </div>
+        <div style="margin-top:14px">
+          <label>Комментарий</label>
+          <textarea id="order-note" placeholder="Необязательно…"></textarea>
+        </div>
+      </div>
+      <button class="btn-sub blue" id="btn-order" onclick="submitOrder()">Сохранить заказ</button>
+    </div>
+
+    <div class="sec" id="s-transfer">
+      <div class="card">
+        <div class="ct">Детали перевода</div>
+        <div class="field">
+          <label>Сумма (₾)</label>
+          <input type="number" id="tr-amount" placeholder="0" min="0" step="0.01">
+        </div>
+        <div class="tog-row" style="margin-top:4px">
+          <label>Перевод выполнен</label>
+          <label class="toggle"><input type="checkbox" id="tr-done"><span class="tr"></span></label>
+        </div>
+      </div>
+      <button class="btn-sub green" onclick="submitTransfer()">Сохранить перевод</button>
+    </div>
+
+    <div class="sec" id="s-trip">
+      <div class="card">
+        <div class="ct">Расходы на поездку</div>
+        <div class="field">
+          <label>Логистические траты (₾)</label>
+          <input type="number" id="log-cost" placeholder="0" min="0" step="0.01">
+        </div>
+        <hr class="div">
+        <div class="field">
+          <label>Стоимость экспедитора (₾)</label>
+          <input type="number" id="exp-cost" value="20" min="0" step="0.01">
+        </div>
+      </div>
+      <button class="btn-sub amber" onclick="submitTrip()">Сохранить поездку</button>
+    </div>
+
+    <div class="sec" id="s-arrival">
+      <div class="card">
+        <div class="ct">Товары к завозу</div>
+        <div id="arr-list"></div>
+        <button class="btn-add" onclick="addArrItem(false)">+ Пополнить существующий</button>
+        <button class="btn-new" onclick="addArrItem(true)">+ Новый товар на склад</button>
+      </div>
+      <div class="card">
+        <div class="field">
+          <label>Комментарий</label>
+          <textarea id="arr-note" placeholder="Поставщик, накладная…"></textarea>
+        </div>
+      </div>
+      <button class="btn-sub violet" onclick="submitArrival()">Сохранить завоз</button>
+    </div>
+
+  </div>
+</div>
+
+<!-- ══ ЗАКАЗЫ ════════════════════════════════════════════════ -->
+<div class="screen" id="sc-orders">
+  <div class="page-hd">
+    <div>
+      <div class="page-hd-title">Заказы</div>
+      <div class="page-hd-sub" id="orders-count-label">Загрузка…</div>
+    </div>
+    <button class="icon-btn" onclick="openOrders()" title="Обновить">↻</button>
+  </div>
+  <div class="filter-wrap">
+    <div class="filter-bar">
+      <button class="fbtn" id="fb-all"      onclick="setTypeFilter('')">Все</button>
+      <button class="fbtn" id="fb-order"    onclick="setTypeFilter('Заказ')">📦 Заказ</button>
+      <button class="fbtn" id="fb-transfer" onclick="setTypeFilter('Перевод')">💸 Перевод</button>
+      <button class="fbtn" id="fb-trip"     onclick="setTypeFilter('Поездка')">🚚 Поездка</button>
+      <button class="fbtn" id="fb-arrival"  onclick="setTypeFilter('Завоз')">📥 Завоз</button>
+    </div>
+    <div class="status-bar">
+      <button class="sbtn on" id="sb-all"    onclick="setStatusFilter('all')">Все</button>
+      <button class="sbtn"    id="sb-active" onclick="setStatusFilter('active')">Активные</button>
+      <button class="sbtn"    id="sb-done"   onclick="setStatusFilter('done')">Завершённые</button>
+    </div>
+  </div>
+  <div class="scroll-area" id="orders-list"></div>
+</div>
+
+<!-- ══ НИЖНЯЯ НАВИГАЦИЯ ══════════════════════════════════════ -->
+<nav class="bottom-nav">
+  <button class="nav-btn active" id="nav-home"    onclick="navTo('home')">   <span class="ni">🏠</span>Главная</button>
+  <button class="nav-btn"        id="nav-journal"  onclick="navTo('journal')"><span class="ni">📋</span>Журнал</button>
+  <button class="nav-btn"        id="nav-orders"   onclick="navTo('orders')"> <span class="ni">📊</span>Заказы</button>
+</nav>
+
+<!-- ══ ПОПАПЫ ════════════════════════════════════════════════ -->
+<div class="popup-overlay hidden" id="pop-pay">
+  <div class="popup">
+    <div class="popup-handle"></div>
+    <div class="popup-title">Способ оплаты</div>
+    <div class="popup-sub">Как была произведена оплата?</div>
+    <div class="popup-btns">
+      <button class="popup-btn success" onclick="confirmPayMethod('Оплатили Дену')">Оплатили Дену</button>
+      <button class="popup-btn primary" onclick="confirmPayMethod('Оплатили Яне')">Оплатили Яне</button>
+      <button class="popup-btn cancel"  onclick="cancelPayPop()">Отмена</button>
+    </div>
+  </div>
+</div>
+
+<div class="popup-overlay hidden" id="pop-complete">
+  <div class="popup">
+    <div class="popup-handle"></div>
+    <div class="popup-title">Завершить заказ?</div>
+    <div class="popup-sub">Товар будет списан со склада. Это действие нельзя отменить.</div>
+    <div class="popup-btns">
+      <button class="popup-btn danger"  onclick="doCompleteConfirmed()">Да, завершить</button>
+      <button class="popup-btn cancel"  onclick="closePopup('pop-complete')">Отмена</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ══════════════════════════════════════════════════════════════
+// КОНФИГУРАЦИЯ — замените на URL вашего веб-приложения Apps Script
+// ══════════════════════════════════════════════════════════════
+var API_URL = https://script.google.com/macros/s/AKfycbyY-fGqhvnXxsBqqfSg-i0Yd8YzfCDnf0vJI77TVgG6XOZ5J5rtwS-7PeLpD_pZkJXd/exec;
+
+// ══════════════════════════════════════════════════════════════
+// TELEGRAM WEB APP
+// ══════════════════════════════════════════════════════════════
+var tg = window.Telegram && window.Telegram.WebApp;
+if (tg) {
+  tg.ready();
+  tg.expand();
+  // Применяем цвета из темы Telegram
+  if (tg.colorScheme === 'dark') {
+    document.documentElement.style.setProperty('--surf2', '#1a1f2e');
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+// STATE
+// ══════════════════════════════════════════════════════════════
+var stockItems=[], orderCount=0, arrCount=0, payMethod='', currentScreen='home';
+var stockReady=false, MAX_ITEMS=5;
+var allEntries=[], typeFilter='', statusFilter='all';
+var _pendingPayOrderId=null, _pendingPayToggle=null;
+var _pendingCompleteId=null, _pendingCompleteBtn=null;
+var currentTab=null;
+
+// ══════════════════════════════════════════════════════════════
+// INIT
+// ══════════════════════════════════════════════════════════════
+document.getElementById('home-date').textContent =
+  new Date().toLocaleDateString('ru-RU',{weekday:'long',day:'numeric',month:'long'});
+
+setStockLoading(true);
+loadStock();
+
+// ══════════════════════════════════════════════════════════════
+// API — все запросы через fetch к Apps Script
+// ══════════════════════════════════════════════════════════════
+function apiGet(action) {
+  return fetch(API_URL + '?action=' + action)
+    .then(function(r){ return r.json(); });
+}
+function apiPost(body) {
+  return fetch(API_URL, {
+    method: 'POST',
+    body: JSON.stringify(body),
+    headers: { 'Content-Type': 'application/json' }
+  }).then(function(r){ return r.json(); });
+}
+
+function loadStock() {
+  apiGet('getStock')
+    .then(function(items){
+      stockItems = Array.isArray(items) ? items : [];
+      stockReady = true;
+      setStockLoading(false);
+      refreshAllSelects();
+      if(currentTab==='order'   && orderCount===0) addOrderItem();
+      if(currentTab==='arrival' && arrCount===0)   addArrItem(false);
+    })
+    .catch(function(e){ setStockLoading(false); toast('Ошибка загрузки склада','err'); });
+}
+
+function reloadStock() {
+  var btn=document.getElementById('btn-refresh-stock');
+  if(btn){ btn.style.opacity='.4'; btn.style.pointerEvents='none'; }
+  apiGet('getStock')
+    .then(function(items){
+      stockItems=Array.isArray(items)?items:[]; stockReady=true;
+      refreshAllSelects();
+      if(btn){ btn.style.opacity=''; btn.style.pointerEvents=''; }
+      toast('Склад обновлён: '+stockItems.length+' товаров','ok');
+    })
+    .catch(function(e){
+      if(btn){ btn.style.opacity=''; btn.style.pointerEvents=''; }
+      toast('Ошибка обновления','err');
+    });
+}
+
+function setStockLoading(on){
+  var el=document.getElementById('stock-loading');
+  if(el) el.style.display=on?'flex':'none';
+}
+function refreshAllSelects(){
+  var opts=buildStockOpts();
+  for(var i=1;i<=orderCount+1;i++){var s=document.getElementById('og-'+i);if(s){var v=s.value;s.innerHTML=opts;s.value=v;}}
+  for(var j=1;j<=arrCount+1;j++){var s2=document.getElementById('as-'+j);if(s2){var v2=s2.value;s2.innerHTML=opts;s2.value=v2;}}
+}
+
+// ══════════════════════════════════════════════════════════════
+// НАВИГАЦИЯ
+// ══════════════════════════════════════════════════════════════
+function navTo(screen) {
+  document.querySelectorAll('.screen').forEach(function(s){s.classList.remove('vis');});
+  document.querySelectorAll('.nav-btn').forEach(function(b){b.classList.remove('active');});
+  document.getElementById('sc-'+screen).classList.add('vis');
+  var nb=document.getElementById('nav-'+screen);
+  if(nb) nb.classList.add('active');
+  currentScreen=screen;
+  window.scrollTo(0,0);
+  if(screen==='journal' && stockReady && orderCount===0) { /* вкладка добавится при go() */ }
+  if(screen==='journal' && !stockReady) loadStock();
+  if(screen==='orders') openOrders();
+  // Кнопка "Назад" в Telegram
+  if(tg) {
+    if(screen==='home'){ tg.BackButton.hide(); }
+    else { tg.BackButton.show(); }
+  }
+}
+
+if(tg) {
+  tg.BackButton.onClick(function(){ navTo('home'); });
+}
+
+// ══════════════════════════════════════════════════════════════
+// ТАБЫ ЖУРНАЛА
+// ══════════════════════════════════════════════════════════════
+var tabCls={order:'a-blue',transfer:'a-green',trip:'a-amber',arrival:'a-violet'};
+function go(tab){
+  if(currentTab){
+    document.getElementById('t-'+currentTab).className='j-tab';
+    document.getElementById('s-'+currentTab).classList.remove('vis');
+  }
+  currentTab=tab;
+  document.getElementById('t-'+tab).classList.add(tabCls[tab]);
+  document.getElementById('s-'+tab).classList.add('vis');
+  if(tab==='order'   && orderCount===0 && stockReady) addOrderItem();
+  if(tab==='arrival' && arrCount===0   && stockReady) addArrItem(false);
+}
+
+// ══════════════════════════════════════════════════════════════
+// ФИЛЬТРЫ ЗАКАЗОВ
+// ══════════════════════════════════════════════════════════════
+var typeClsMap={'':'on-blue','Заказ':'on-blue','Перевод':'on-green','Поездка':'on-amber','Завоз':'on-violet'};
+var typeBtnMap={'':'fb-all','Заказ':'fb-order','Перевод':'fb-transfer','Поездка':'fb-trip','Завоз':'fb-arrival'};
+function setTypeFilter(t){
+  typeFilter=t;
+  ['fb-all','fb-order','fb-transfer','fb-trip','fb-arrival'].forEach(function(id){document.getElementById(id).className='fbtn';});
+  document.getElementById(typeBtnMap[t]).classList.add(typeClsMap[t]||'on-blue');
+  renderOrders();
+}
+function setStatusFilter(s){
+  statusFilter=s;
+  ['sb-all','sb-active','sb-done'].forEach(function(id){document.getElementById(id).classList.remove('on');});
+  document.getElementById('sb-'+s).classList.add('on');
+  renderOrders();
+}
+
+// ══════════════════════════════════════════════════════════════
+// ЗАГРУЗКА И РЕНДЕР ЗАКАЗОВ
+// ══════════════════════════════════════════════════════════════
+function openOrders(){
+  document.getElementById('orders-count-label').textContent='Загрузка…';
+  document.getElementById('orders-list').innerHTML='<div class="empty-state"><span class="ei">⏳</span>Загружаем данные…</div>';
+  apiGet('getJournal')
+    .then(function(entries){ allEntries=entries||[]; renderOrders(); })
+    .catch(function(e){ toast('Ошибка загрузки','err'); });
+}
+
+function renderOrders(){
+  var groups={}, singles=[];
+  allEntries.forEach(function(e){
+    if(e.type==='Заказ'){
+      if(!groups[e.id]) groups[e.id]={id:e.id,date:e.date,customer:e.customer,
+        payStatus:e.payStatus,payMethod:e.payMethod,delivery:e.delivery,
+        comment:e.comment,status:e.status,items:[]};
+      groups[e.id].items.push({name:e.goods,qty:e.qty,price:e.price});
+      if(e.status!=='Завершён') groups[e.id].status='Активен';
+    } else singles.push(e);
+  });
+  var cards=[];
+  Object.keys(groups).forEach(function(id){cards.push({kind:'order',data:groups[id]});});
+  singles.forEach(function(e){
+    var k=e.type==='Перевод'?'transfer':e.type==='Поездка'?'trip':'arrival';
+    cards.push({kind:k,data:e});
+  });
+  cards.sort(function(a,b){return (b.data.date||'').localeCompare(a.data.date||'');});
+  if(typeFilter){
+    var km={order:'Заказ',transfer:'Перевод',trip:'Поездка',arrival:'Завоз'};
+    cards=cards.filter(function(c){return km[c.kind]===typeFilter;});
+  }
+  if(statusFilter==='active') cards=cards.filter(function(c){var s=c.data.status||'';return s!=='Завершён'&&s!=='Завершен';});
+  else if(statusFilter==='done') cards=cards.filter(function(c){var s=c.data.status||'';return s==='Завершён'||s==='Завершен';});
+
+  document.getElementById('orders-count-label').textContent='Операций: '+cards.length;
+  var container=document.getElementById('orders-list');
+  if(!cards.length){container.innerHTML='<div class="empty-state"><span class="ei">📭</span>Нет операций</div>';return;}
+  container.innerHTML=cards.map(function(c){
+    if(c.kind==='order')    return renderOrderCard(c.data);
+    if(c.kind==='transfer') return renderTransferCard(c.data);
+    if(c.kind==='trip')     return renderTripCard(c.data);
+    return renderArrivalCard(c.data);
+  }).join('');
+}
+
+function renderOrderCard(d){
+  var isDone=d.status==='Завершён'||d.status==='Завершен';
+  var paid=d.payStatus==='Оплачен', deliv=d.delivery==='Да';
+  var total=d.items.reduce(function(s,it){return s+(it.qty*(it.price||0));},0);
+  var oid=esc(d.id);
+  var payName=paid&&d.payMethod?d.payMethod.replace('Оплатили ',''):'';
+  var itemsHtml=d.items.map(function(it){
+    var sum=it.qty*(it.price||0);
+    return '<div class="op-goods-row"><span class="op-goods-name">'+esc(it.name)+'</span>'+
+      '<span class="op-goods-qty">'+it.qty+' шт.</span>'+
+      '<span class="op-goods-sum">'+(sum>0?sum.toFixed(2)+' ₾':'—')+'</span></div>';
+  }).join('');
+  var rightHtml=
+    '<div class="op-toggls">'+
+      '<div class="mini-tog"><div class="mini-tog-label">Оплата</div>'+
+        '<label class="mini-toggle"><input type="checkbox" '+(paid?'checked':'')+
+        ' onchange="togglePay(this.dataset.oid,this)" data-oid="'+oid+'"><span class="mtr"></span></label>'+
+        '<div class="mini-tog-pay-method" id="pay-method-'+oid+'" style="'+(payName?'':'visibility:hidden')+'">'+esc(payName||'—')+'</div>'+
+      '</div>'+
+      '<div class="mini-tog"><div class="mini-tog-label">Доставка</div>'+
+        '<label class="mini-toggle"><input type="checkbox" '+(deliv?'checked':'')+
+        ' onchange="toggleDelivery(this.dataset.oid,this)" data-oid="'+oid+'"><span class="mtr"></span></label>'+
+        '<div class="mini-tog-val '+(deliv?'yes':'no')+'" id="del-val-'+oid+'">'+(deliv?'Доставлен':'Не дост.')+'</div>'+
+      '</div></div>'+
+    (isDone?'<div class="op-status-done">✓ Завершён</div>':
+      '<button class="btn-complete" id="bcmp-'+oid+'" onclick="askComplete(this.dataset.oid,this)" data-oid="'+oid+'">Завершить</button>');
+
+  return '<div class="op-card anim" id="card-'+oid+'"><div class="op-card-inner">'+
+    '<div class="op-left"><div>'+
+      '<div class="op-customer">'+esc(d.customer||'—')+'</div>'+
+      '<div class="op-goods-list">'+itemsHtml+'</div></div>'+
+      '<div><hr class="op-divider"><div class="op-bottom">'+
+        '<div><div class="op-total-label">Итого</div><div class="op-total-val">'+(total>0?total.toFixed(2)+' ₾':'—')+'</div></div>'+
+        '<div class="op-meta-row"><span class="op-type-inline order">Заказ</span>'+
+          '<span class="op-id">'+oid+'</span><span class="op-date">'+esc(d.date)+'</span></div>'+
+      '</div></div></div>'+
+    '<div class="op-right">'+rightHtml+'</div></div></div>';
+}
+
+function renderTransferCard(d){
+  var done=d.transferStatus==='Выполнен';
+  return '<div class="op-card anim"><div class="op-card-head">'+
+    '<span class="op-type-badge transfer">Перевод</span><div style="font-size:11px;color:var(--text3)">'+esc(d.date)+'</div></div>'+
+    '<div class="op-amount">'+(d.amount?d.amount.toFixed(2)+' ₾':'—')+'</div>'+
+    '<div style="font-size:14px;font-weight:700;color:'+(done?'var(--green)':'var(--coral)')+'">'+
+    (done?'✅ Выполнен':'⏳ Ожидает')+'</div></div>';
+}
+
+function renderTripCard(d){
+  var total=(d.amount||0)+(d.expeditor||0);
+  return '<div class="op-card anim"><div class="op-card-head">'+
+    '<span class="op-type-badge trip">Поездка</span><div style="font-size:11px;color:var(--text3)">'+esc(d.date)+'</div></div>'+
+    '<div class="op-goods-list" style="margin-bottom:8px">'+
+      '<div class="op-goods-row"><span class="op-goods-name">Логистика</span><span class="op-goods-sum">'+(d.amount||0).toFixed(2)+' ₾</span></div>'+
+      '<div class="op-goods-row"><span class="op-goods-name">Экспедитор</span><span class="op-goods-sum">'+(d.expeditor||0).toFixed(2)+' ₾</span></div></div>'+
+    '<hr class="op-divider"><div class="op-total-label">Итого расходов</div>'+
+    '<div class="op-total-val">'+total.toFixed(2)+' ₾</div></div>';
+}
+
+function renderArrivalCard(d){
+  return '<div class="op-card anim"><div class="op-card-head">'+
+    '<span class="op-type-badge arrival">Завоз</span><div style="font-size:11px;color:var(--text3)">'+esc(d.date)+'</div></div>'+
+    '<div class="op-goods-list">'+
+      '<div class="op-goods-row"><span class="op-goods-name">'+esc(d.goods||'—')+'</span>'+
+        '<span class="op-goods-qty">'+(d.qty?d.qty+' шт.':'')+'</span>'+
+        '<span class="op-goods-sum">'+(d.price?d.price.toFixed(2)+' ₾/шт':'')+'</span></div></div>'+
+    (d.comment?'<div style="font-size:12px;color:var(--text3);margin-top:6px">'+esc(d.comment)+'</div>':'')+
+  '</div>';
+}
+
+// ══════════════════════════════════════════════════════════════
+// ТОГГЛЫ В КАРТОЧКАХ ЗАКАЗОВ
+// ══════════════════════════════════════════════════════════════
+function togglePay(orderId,chk){
+  if(chk.checked){
+    _pendingPayOrderId=orderId; _pendingPayToggle=chk;
+    document.getElementById('pop-pay').classList.remove('hidden');
+  } else {
+    updateOrderField(orderId,'payStatus','Не оплачен','payMethod','');
+    var pm=document.getElementById('pay-method-'+orderId);
+    if(pm){pm.style.visibility='hidden';}
+  }
+}
+function confirmPayMethod(method){
+  closePopup('pop-pay');
+  if(!_pendingPayOrderId) return;
+  updateOrderField(_pendingPayOrderId,'payStatus','Оплачен','payMethod',method);
+  var m=method.replace('Оплатили ','');
+  var pm=document.getElementById('pay-method-'+_pendingPayOrderId);
+  if(pm){pm.textContent=m;pm.style.visibility='visible';}
+  _pendingPayOrderId=null; _pendingPayToggle=null;
+}
+function cancelPayPop(){
+  closePopup('pop-pay');
+  if(_pendingPayToggle) _pendingPayToggle.checked=false;
+  _pendingPayOrderId=null; _pendingPayToggle=null;
+}
+function toggleDelivery(orderId,chk){
+  updateOrderField(orderId,'delivery',chk.checked?'Да':'Нет','','');
+  var el=document.getElementById('del-val-'+orderId);
+  if(el){el.textContent=chk.checked?'Доставлен':'Не дост.';el.className='mini-tog-val '+(chk.checked?'yes':'no');}
+}
+function updateOrderField(orderId,f1,v1,f2,v2){
+  apiPost({action:'updateOrderFields',orderId:orderId,field1:f1,val1:v1,field2:f2,val2:v2})
+    .catch(function(){ toast('Ошибка сохранения','err'); });
+}
+function askComplete(orderId,btn){
+  _pendingCompleteId=orderId; _pendingCompleteBtn=btn;
+  document.getElementById('pop-complete').classList.remove('hidden');
+}
+function doCompleteConfirmed(){
+  closePopup('pop-complete');
+  if(!_pendingCompleteId) return;
+  var orderId=_pendingCompleteId, btn=_pendingCompleteBtn;
+  if(btn){btn.disabled=true;btn.textContent='…';}
+  apiPost({action:'completeOrder',orderId:orderId})
+    .then(function(r){
+      if(r.ok){toast('Заказ завершён','ok');loadStock();openOrders();}
+      else{toast('Ошибка:\n'+r.error,'err');if(btn){btn.disabled=false;btn.textContent='Завершить';}}
+    })
+    .catch(function(e){toast('Ошибка','err');if(btn){btn.disabled=false;btn.textContent='Завершить';}});
+  _pendingCompleteId=null; _pendingCompleteBtn=null;
+}
+function closePopup(id){document.getElementById(id).classList.add('hidden');}
+
+// ══════════════════════════════════════════════════════════════
+// ФОРМА ЗАКАЗА
+// ══════════════════════════════════════════════════════════════
+function addOrderItem(){
+  if(orderCount>=MAX_ITEMS) return;
+  orderCount++;
+  var i=orderCount;
+  var row=document.createElement('div');
+  row.className='item-row anim';row.id='oi-'+i;
+  var opts=buildStockOpts();
+  row.innerHTML=
+    '<div class="item-num">Позиция '+i+'</div>'+
+    '<div class="item-fields">'+
+      '<select id="og-'+i+'" onchange="onGoodsChange('+i+')">'+opts+'</select>'+
+      '<input type="number" id="oq-'+i+'" placeholder="Кол-во" min="1" step="1">'+
+      (i>1?'<button class="btn-rm" onclick="removeOI('+i+')">×</button>':'<div></div>')+
+    '</div>'+
+    '<div id="ob-'+i+'" class="item-badge"></div>';
+  document.getElementById('order-list').appendChild(row);
+  document.getElementById('btn-add-o').disabled=orderCount>=MAX_ITEMS;
+}
+function removeOI(i){var el=document.getElementById('oi-'+i);if(el)el.remove();orderCount--;document.getElementById('btn-add-o').disabled=false;}
+function onGoodsChange(i){
+  var sel=document.getElementById('og-'+i),badge=document.getElementById('ob-'+i);
+  var opt=sel.options[sel.selectedIndex];
+  if(!sel.value){badge.innerHTML='';badge.className='item-badge';return;}
+  var av=parseInt(opt.getAttribute('data-av')||'0',10),pr=parseFloat(opt.getAttribute('data-pr')||'0');
+  badge.innerHTML='Доступно: <b>'+av+'</b> шт.'+(pr>0?' · <span style="color:var(--amber)">'+pr.toFixed(2)+' ₾</span>':'');
+  badge.className='item-badge '+(av===0?'no':av<=3?'low':'ok');
+}
+function buildStockOpts(){
+  var s='<option value="">— выберите товар —</option>';
+  stockItems.forEach(function(it){
+    s+='<option value="'+esc(it.id)+'" data-name="'+esc(it.name)+'" data-av="'+it.available+'" data-pr="'+it.price+'">'+
+      esc(it.name)+' ('+it.available+' шт.)'+(it.price>0?' — '+it.price.toFixed(2)+' ₾':'')+
+    '</option>';
+  });
+  if(!stockItems.length) s='<option value="">Загрузка…</option>';
+  return s;
+}
+function pickPill(el){document.querySelectorAll('#pay-pills .pill').forEach(function(p){p.classList.remove('sel');});el.classList.add('sel');payMethod=el.getAttribute('data-v');}
+function togPay(){var on=document.getElementById('pay-chk').checked;document.getElementById('pay-method').style.display=on?'block':'none';if(!on){document.querySelectorAll('#pay-pills .pill').forEach(function(p){p.classList.remove('sel');});payMethod='';}}
+
+function submitOrder(){
+  var items=[],err=false;
+  for(var i=1;i<=orderCount+10;i++){
+    var sg=document.getElementById('og-'+i),sq=document.getElementById('oq-'+i);
+    if(!sg||!sq)continue;if(!sg.value)continue;
+    var q=parseInt(sq.value,10);
+    if(isNaN(q)||q<=0){toast('Укажите количество для позиции '+i,'err');err=true;break;}
+    var opt=sg.options[sg.selectedIndex];
+    items.push({goodsId:sg.value,goodsName:opt.getAttribute('data-name')||opt.text,qty:q,price:parseFloat(opt.getAttribute('data-pr')||'0')});
+  }
+  if(err||!items.length){if(!err)toast('Добавьте хотя бы один товар','err');return;}
+  var customer=document.getElementById('order-customer').value.trim();
+  if(!customer){toast('Введите имя заказчика','err');return;}
+  var payStatus=document.getElementById('pay-chk').checked?'Оплачен':'Не оплачен';
+  if(payStatus==='Оплачен'&&!payMethod){toast('Выберите способ оплаты','err');return;}
+  busy('btn-order',true);
+  apiPost({action:'saveEntry',payload:{type:'Заказ',items:items,customer:customer,payStatus:payStatus,payMethod:payMethod,
+    delivery:document.getElementById('delivery').checked?'Да':'Нет',
+    comment:document.getElementById('order-note').value.trim()}})
+    .then(function(r){busy('btn-order',false);if(r.ok){toast('Заказ сохранён\n'+r.orderId,'ok');resetOrder();loadStock();}else toast('Ошибка:\n'+r.error,'err');})
+    .catch(function(){busy('btn-order',false);toast('Ошибка связи','err');});
+}
+function resetOrder(){
+  document.getElementById('order-list').innerHTML='';orderCount=0;payMethod='';
+  document.getElementById('pay-chk').checked=false;document.getElementById('pay-method').style.display='none';
+  document.querySelectorAll('#pay-pills .pill').forEach(function(p){p.classList.remove('sel');});
+  document.getElementById('delivery').checked=false;
+  document.getElementById('order-customer').value='';document.getElementById('order-note').value='';
+  document.getElementById('btn-add-o').disabled=false;
+  if(stockReady) addOrderItem();
+}
+
+// ══════════════════════════════════════════════════════════════
+// ФОРМА ПЕРЕВОДА / ПОЕЗДКИ / ЗАВОЗА
+// ══════════════════════════════════════════════════════════════
+function submitTransfer(){
+  var amt=parseFloat(document.getElementById('tr-amount').value);
+  if(!amt||amt<=0){toast('Введите сумму','err');return;}
+  apiPost({action:'saveEntry',payload:{type:'Перевод',amount:amt,transferStatus:document.getElementById('tr-done').checked?'Выполнен':'Нет'}})
+    .then(function(r){if(r.ok){toast('Перевод сохранён','ok');document.getElementById('tr-amount').value='';document.getElementById('tr-done').checked=false;}else toast('Ошибка:\n'+r.error,'err');})
+    .catch(function(){toast('Ошибка связи','err');});
+}
+function submitTrip(){
+  var lc=parseFloat(document.getElementById('log-cost').value)||0;
+  var ec=parseFloat(document.getElementById('exp-cost').value)||20;
+  apiPost({action:'saveEntry',payload:{type:'Поездка',logisticsCost:lc,expeditorCost:ec}})
+    .then(function(r){if(r.ok){toast('Поездка сохранена','ok');document.getElementById('log-cost').value='';document.getElementById('exp-cost').value='20';}else toast('Ошибка:\n'+r.error,'err');})
+    .catch(function(){toast('Ошибка связи','err');});
+}
+
+function addArrItem(isNew){
+  arrCount++;var i=arrCount;
+  var row=document.createElement('div');row.className='arr-row anim';row.id='ai-'+i;
+  if(isNew){
+    row.innerHTML='<div class="arr-tag">Новый товар</div>'+
+      '<div class="arr-new-grid">'+
+        '<div class="field" style="margin-bottom:0"><label>Название</label><input type="text" id="an-'+i+'" placeholder="Название"></div>'+
+      '</div>'+
+      '<div class="arr-new-sub">'+
+        '<div><label>Кол-во</label><input type="number" id="aq-'+i+'" placeholder="0" min="1" step="1"></div>'+
+        '<div><label>Цена (₾)</label><input type="number" id="apr-'+i+'" placeholder="0.00" min="0" step="0.01"></div>'+
+        '<button class="btn-rm" onclick="removeAI('+i+')" style="align-self:end">×</button>'+
+      '</div>'+
+      '<input type="hidden" id="ainew-'+i+'" value="1"><input type="hidden" id="aid-'+i+'" value="">';
+  } else {
+    row.innerHTML='<div class="field" style="margin-bottom:0"><label>Товар</label>'+
+      '<select id="as-'+i+'" onchange="onArrGoodsChange('+i+')">'+buildStockOpts()+'</select></div>'+
+      '<div class="arr-info" id="apb-'+i+'"></div>'+
+      '<div class="arr-row-grid">'+
+        '<input type="number" id="aq-'+i+'" placeholder="Кол-во" min="1" step="1">'+
+        '<input type="number" id="apr-'+i+'" placeholder="Цена" min="0" step="0.01">'+
+        '<button class="btn-rm" onclick="removeAI('+i+')" style="align-self:center">×</button>'+
+      '</div>'+
+      '<input type="hidden" id="ainew-'+i+'" value="0"><input type="hidden" id="aid-'+i+'" value="">';
+  }
+  document.getElementById('arr-list').appendChild(row);
+}
+function onArrGoodsChange(i){
+  var sel=document.getElementById('as-'+i),info=document.getElementById('apb-'+i);
+  var opt=sel.options[sel.selectedIndex];
+  if(!sel.value){info.textContent='';return;}
+  var av=opt.getAttribute('data-av'),pr=parseFloat(opt.getAttribute('data-pr')||'0');
+  info.innerHTML='На складе: <b>'+av+'</b> шт.'+(pr>0?' · <span style="color:var(--amber)">'+pr.toFixed(2)+' ₾</span>':'');
+  var pi=document.getElementById('apr-'+i);if(pi&&pr>0)pi.placeholder=pr.toFixed(2);
+}
+function removeAI(i){var el=document.getElementById('ai-'+i);if(el)el.remove();arrCount--;}
+
+function submitArrival(){
+  var items=[],err=false;
+  for(var i=1;i<=arrCount+10;i++){
+    var rowEl=document.getElementById('ai-'+i);if(!rowEl)continue;
+    var isNew=document.getElementById('ainew-'+i).value==='1';
+    var q=parseInt((document.getElementById('aq-'+i)||{}).value,10);
+    var pr=parseFloat((document.getElementById('apr-'+i)||{}).value)||0;
+    if(isNaN(q)||q<=0){toast('Укажите количество для позиции '+i,'err');err=true;break;}
+    if(isNew){
+      var nm=(document.getElementById('an-'+i)||{}).value||'';
+      if(!nm.trim()){toast('Введите название нового товара','err');err=true;break;}
+      items.push({goodsId:'',goodsName:nm.trim(),qty:q,price:pr,isNew:true});
+    } else {
+      var sel=document.getElementById('as-'+i);
+      if(!sel||!sel.value){toast('Выберите товар для позиции '+i,'err');err=true;break;}
+      var opt=sel.options[sel.selectedIndex];
+      if(!pr)pr=parseFloat(opt.getAttribute('data-pr')||'0');
+      items.push({goodsId:sel.value,goodsName:opt.getAttribute('data-name')||opt.text,qty:q,price:pr,isNew:false});
+    }
+  }
+  if(err||!items.length){if(!err)toast('Добавьте хотя бы один товар','err');return;}
+  apiPost({action:'saveEntry',payload:{type:'Завоз',items:items,comment:document.getElementById('arr-note').value.trim()}})
+    .then(function(r){
+      if(r.ok){
+        var msg='Завоз сохранён';if(r.results&&r.results.length)msg+='\n'+r.results.join('\n');
+        toast(msg,'ok');
+        document.getElementById('arr-list').innerHTML='';arrCount=0;addArrItem(false);
+        document.getElementById('arr-note').value='';loadStock();
+      } else toast('Ошибка:\n'+r.error,'err');
+    })
+    .catch(function(){toast('Ошибка связи','err');});
+}
+
+// ══════════════════════════════════════════════════════════════
+// HELPERS
+// ══════════════════════════════════════════════════════════════
+function busy(id,on){
+  var b=document.getElementById(id);if(!b)return;
+  b.disabled=on;
+  if(on)b.innerHTML='<div class="spin"></div>';else b.textContent=b.getAttribute('data-lbl')||'Сохранить';
+}
+function toast(msg,cls){
+  var el=document.getElementById('toast');
+  el.textContent=msg;el.className='toast '+(cls||'');el.classList.add('show');
+  setTimeout(function(){el.classList.remove('show');},3500);
+}
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+
+document.querySelectorAll('.btn-sub').forEach(function(b){b.setAttribute('data-lbl',b.textContent.trim());});
+</script>
+</body>
+</html>
