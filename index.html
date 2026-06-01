@@ -261,6 +261,14 @@ hr.div{border:none;border-top:1px solid var(--border);margin:14px 0}
       </div>
       <div class="hc-arr">›</div>
     </div>
+    <div class="home-card amber" onclick="navTo('money')">
+      <div class="hc-ico">💰</div>
+      <div class="hc-body">
+        <div class="hc-title">Деньги</div>
+        <div class="hc-sub">Депозит, движения, расчёты</div>
+      </div>
+      <div class="hc-arr">›</div>
+    </div>
   </div>
 </div>
 
@@ -400,10 +408,65 @@ hr.div{border:none;border-top:1px solid var(--border);margin:14px 0}
 
 <!-- ══ НИЖНЯЯ НАВИГАЦИЯ ══════════════════════════════════════ -->
 <nav class="bottom-nav">
-  <button class="nav-btn active" id="nav-home"    onclick="navTo('home')">   <span class="ni">🏠</span>Главная</button>
+  <button class="nav-btn active" id="nav-home"    onclick="navTo('home')">    <span class="ni">🏠</span>Главная</button>
   <button class="nav-btn"        id="nav-journal"  onclick="navTo('journal')"><span class="ni">📋</span>Журнал</button>
   <button class="nav-btn"        id="nav-orders"   onclick="navTo('orders')"> <span class="ni">📊</span>Заказы</button>
+  <button class="nav-btn"        id="nav-money"    onclick="navTo('money')">  <span class="ni">💰</span>Деньги</button>
 </nav>
+
+<!-- ══ ДЕНЬГИ ════════════════════════════════════════════════ -->
+<div class="screen" id="sc-money">
+  <div class="page-hd">
+    <div>
+      <div class="page-hd-title">Деньги</div>
+      <div class="page-hd-sub" id="money-date"></div>
+    </div>
+    <button class="icon-btn" onclick="openMoney()" title="Обновить">↻</button>
+  </div>
+  <div class="scroll-area">
+
+    <!-- Депозит -->
+    <div class="card" id="deposit-card">
+      <div class="ct">Депозит</div>
+      <div id="deposit-balance" style="font-size:32px;font-weight:800;letter-spacing:-.5px;margin-bottom:4px">—</div>
+      <div style="font-size:13px;color:var(--text2)">Текущий баланс</div>
+    </div>
+
+    <!-- Новая операция -->
+    <div class="card">
+      <div class="ct">Новая операция</div>
+      <div class="field">
+        <label>Тип операции</label>
+        <select id="money-type">
+          <option value="">— выберите —</option>
+          <option value="plus_deposit">➕ Плюс депозит</option>
+          <option value="client_yane">👤 Клиент → Яне</option>
+          <option value="client_den">👤 Клиент → Дену</option>
+          <option value="den_yane">🔄 Ден → Яне</option>
+          <option value="zp">💼 ЗП</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Сумма (₾)</label>
+        <input type="number" id="money-amount" placeholder="0" min="0" step="0.01">
+      </div>
+      <div class="field">
+        <label>Комментарий</label>
+        <input type="text" id="money-comment" placeholder="Необязательно…">
+      </div>
+      <button class="btn-sub amber" id="btn-money" onclick="submitMoney()">Сохранить</button>
+    </div>
+
+    <!-- Последние операции -->
+    <div class="card">
+      <div class="ct">Последние операции</div>
+      <div id="money-list">
+        <div style="color:var(--text3);font-size:14px;padding:10px 0">Загрузка…</div>
+      </div>
+    </div>
+
+  </div>
+</div>
 
 <!-- ══ ПОПАПЫ ════════════════════════════════════════════════ -->
 <div class="popup-overlay hidden" id="pop-pay">
@@ -554,6 +617,7 @@ function navTo(screen) {
   if(screen==='journal' && stockReady && orderCount===0) { /* вкладка добавится при go() */ }
   if(screen==='journal' && !stockReady) loadStock();
   if(screen==='orders') openOrders();
+  if(screen==='money')  openMoney();
   // Кнопка "Назад" в Telegram
   try {
     if(tg && tg.BackButton) {
@@ -1079,6 +1143,110 @@ function submitArrival(){
 // ══════════════════════════════════════════════════════════════
 // HELPERS
 // ══════════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════
+// ДЕНЬГИ
+// ══════════════════════════════════════════════════════════════
+var MONEY_TYPES = {
+  plus_deposit: '➕ Плюс депозит',
+  client_yane:  '👤 Клиент → Яне',
+  client_den:   '👤 Клиент → Дену',
+  den_yane:     '🔄 Ден → Яне',
+  zp:           '💼 ЗП'
+};
+
+// Типы которые увеличивают депозит
+var MONEY_PLUS  = ['plus_deposit', 'client_yane', 'client_den'];
+// Типы которые уменьшают депозит
+var MONEY_MINUS = ['den_yane', 'zp'];
+
+function openMoney() {
+  document.getElementById('money-date').textContent =
+    new Date().toLocaleDateString('ru-RU',{day:'numeric',month:'long'});
+  loadDeposit();
+  loadMoneyList();
+}
+
+function loadDeposit() {
+  sbGet('deposit', 'id=eq.1')
+    .then(function(rows){
+      var bal = rows && rows[0] ? Number(rows[0].balance) : 0;
+      document.getElementById('deposit-balance').textContent =
+        bal.toFixed(2) + ' ₾';
+      document.getElementById('deposit-balance').style.color =
+        bal >= 0 ? 'var(--green)' : 'var(--coral)';
+    })
+    .catch(function(){ document.getElementById('deposit-balance').textContent = 'Ошибка'; });
+}
+
+function loadMoneyList() {
+  var list = document.getElementById('money-list');
+  list.innerHTML = '<div style="color:var(--text3);font-size:14px;padding:10px 0">Загрузка…</div>';
+  sbGet('money', 'order=created_at.desc&limit=5')
+    .then(function(rows){
+      if(!rows || !rows.length){
+        list.innerHTML = '<div style="color:var(--text3);font-size:14px;padding:10px 0">Операций пока нет</div>';
+        return;
+      }
+      list.innerHTML = rows.map(function(r){
+        var isPlus = MONEY_PLUS.indexOf(r.type) !== -1;
+        var label  = MONEY_TYPES[r.type] || r.type;
+        var date   = r.created_at
+          ? new Date(r.created_at).toLocaleString('ru-RU',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})
+          : '';
+        return '<div style="display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid var(--border)">' +
+          '<div>' +
+            '<div style="font-size:15px;font-weight:600">' + esc(label) + '</div>' +
+            '<div style="font-size:12px;color:var(--text3);margin-top:2px">' + date +
+              (r.comment ? ' · ' + esc(r.comment) : '') +
+            '</div>' +
+          '</div>' +
+          '<div style="font-size:17px;font-weight:700;color:' + (isPlus?'var(--green)':'var(--coral)') + '">' +
+            (isPlus?'+':'-') + Number(r.amount).toFixed(2) + ' ₾' +
+          '</div>' +
+        '</div>';
+      }).join('');
+    })
+    .catch(function(){ list.innerHTML = '<div style="color:var(--coral);font-size:14px">Ошибка загрузки</div>'; });
+}
+
+function submitMoney() {
+  var type    = document.getElementById('money-type').value;
+  var amount  = parseFloat(document.getElementById('money-amount').value);
+  var comment = document.getElementById('money-comment').value.trim();
+
+  if(!type)          { toast('Выберите тип операции','err'); return; }
+  if(!amount||amount<=0) { toast('Введите сумму','err'); return; }
+
+  busy('btn-money', true);
+
+  // Считаем изменение депозита
+  var isPlus = MONEY_PLUS.indexOf(type) !== -1;
+  var delta  = isPlus ? amount : -amount;
+
+  // Сохраняем операцию
+  sbPost('money', [{type:type, amount:amount, comment:comment}])
+    .then(function(){
+      // Обновляем баланс депозита
+      return sbGet('deposit','id=eq.1').then(function(rows){
+        var current = rows && rows[0] ? Number(rows[0].balance) : 0;
+        return sbPatch('deposit','id=eq.1',{balance: current + delta});
+      });
+    })
+    .then(function(){
+      busy('btn-money', false);
+      toast('Сохранено','ok');
+      document.getElementById('money-type').value = '';
+      document.getElementById('money-amount').value = '';
+      document.getElementById('money-comment').value = '';
+      loadDeposit();
+      loadMoneyList();
+    })
+    .catch(function(){
+      busy('btn-money', false);
+      toast('Ошибка связи','err');
+    });
+}
+
 function generateId(prefix){
   var d=new Date();
   var pad=function(n){return String(n).padStart(2,'0');};
