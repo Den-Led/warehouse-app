@@ -474,15 +474,15 @@ loadStock();
 // API — все запросы через fetch к Apps Script
 // ══════════════════════════════════════════════════════════════
 function apiGet(action) {
-  return fetch(API_URL + '?action=' + action)
+  return fetch(API_URL + '?action=' + encodeURIComponent(action), {redirect:'follow'})
     .then(function(r){ return r.json(); });
 }
+// Apps Script не поддерживает CORS для POST — используем GET с data-параметром
 function apiPost(body) {
-  return fetch(API_URL, {
-    method: 'POST',
-    body: JSON.stringify(body),
-    headers: { 'Content-Type': 'application/json' }
-  }).then(function(r){ return r.json(); });
+  var encoded = btoa(unescape(encodeURIComponent(JSON.stringify(body))));
+  var url = API_URL + '?data=' + encodeURIComponent(encoded);
+  return fetch(url, {redirect:'follow'})
+    .then(function(r){ return r.json(); });
 }
 
 function loadStock() {
