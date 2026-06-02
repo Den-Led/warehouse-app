@@ -711,7 +711,8 @@ function openOrders(){
           transferStatus: r.transfer_status || '',
           expeditor:      Number(r.expeditor) || 0,
           comment:        r.comment     || '',
-          status:         r.status      || ''
+          status:         r.status      || '',
+          my_percent:     Number(r.my_percent) || 0
         };
       });
       renderOrders();
@@ -725,8 +726,9 @@ function renderOrders(){
     if(e.type==='Заказ'){
       if(!groups[e.id]) groups[e.id]={id:e.id,date:e.date,customer:e.customer,
         payStatus:e.payStatus,payMethod:e.payMethod,delivery:e.delivery,
-        comment:e.comment,status:e.status,items:[]};
+        comment:e.comment,status:e.status,items:[],totalPercent:0};
       groups[e.id].items.push({name:e.goods,qty:e.qty,price:e.price});
+      groups[e.id].totalPercent += e.my_percent || 0;
       if(e.status!=='Завершён') groups[e.id].status='Активен';
     } else singles.push(e);
   });
@@ -787,7 +789,13 @@ function renderOrderCard(d){
       '<div class="op-customer">'+esc(d.customer||'—')+'</div>'+
       '<div class="op-goods-list">'+itemsHtml+'</div></div>'+
       '<div><hr class="op-divider"><div class="op-bottom">'+
-        '<div><div class="op-total-label">Итого</div><div class="op-total-val">'+(total>0?total.toFixed(2)+' ₾':'—')+'</div></div>'+
+        '<div style="display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap">'+
+          '<div><div class="op-total-label">Итого</div><div class="op-total-val">'+(total>0?total.toFixed(2)+' ₾':'—')+'</div></div>'+
+          (d.totalPercent>0?'<div style="background:rgba(167,139,250,.12);border:1px solid rgba(167,139,250,.3);border-radius:8px;padding:4px 10px;text-align:center">'+
+            '<div style="font-size:10px;font-weight:700;color:var(--violet);letter-spacing:.3px;text-transform:uppercase">%</div>'+
+            '<div style="font-size:15px;font-weight:700;color:var(--violet)">'+d.totalPercent.toFixed(2)+' ₾</div>'+
+          '</div>':'')+
+        '</div>'+
         '<div class="op-meta-row"><span class="op-type-inline order">Заказ</span>'+
           '<span class="op-id">'+oid+'</span><span class="op-date">'+esc(d.date)+'</span></div>'+
       '</div></div></div>'+
