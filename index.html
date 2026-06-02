@@ -976,16 +976,20 @@ function toggleDelivery(orderId,chk){
   // Доставка ВКЛ:  reserved → sold
   // Доставка ВЫКЛ: sold → reserved (откат)
   // Запросы выполняются строго последовательно чтобы избежать race condition
-  sbGet('journal','select=goods,qty&operation_id=eq.'+encodeURIComponent(orderId)+'&type=eq.Заказ')
+  sbGet('journal','select=goods,goods_id,qty&operation_id=eq.'+encodeURIComponent(orderId)+'&type=eq.Заказ')
     .then(function(rows){
       if(!rows||!rows.length) return;
       // Последовательная цепочка — каждый следующий ждёт предыдущего
       return rows.reduce(function(chain, row){
         return chain.then(function(){
-          return sbGet('stock','select=*&name=eq.'+encodeURIComponent(row.goods))
+          // Ищем по id если есть, иначе по имени
+          var stockQuery = row.goods_id
+            ? 'select=*&id=eq.'+encodeURIComponent(row.goods_id)
+            : 'select=*&name=ilike.'+encodeURIComponent(row.goods);
+          return sbGet('stock', stockQuery)
             .then(function(items){
               if(!items||!items[0]){
-                console.error('Товар не найден в stock:', row.goods);
+                console.error('Товар не найден в stock:', row.goods, 'id:', row.goods_id);
                 return;
               }
               var s   = items[0]; // свежие данные после предыдущего обновления
@@ -1030,13 +1034,16 @@ function doReturnOrder(){
   _pendingCompleteId=null; _pendingCompleteBtn=null;
 
   // Возвращаем зарезервированные товары в available
-  sbGet('journal','select=goods,qty,delivery&operation_id=eq.'+encodeURIComponent(orderId)+'&type=eq.Заказ')
+  sbGet('journal','select=goods,goods_id,qty,delivery&operation_id=eq.'+encodeURIComponent(orderId)+'&type=eq.Заказ')
     .then(function(rows){
       if(!rows||!rows.length) return Promise.resolve();
       // Последовательно чтобы избежать race condition
       return rows.reduce(function(chain, row){
         return chain.then(function(){
-          return sbGet('stock','select=*&name=eq.'+encodeURIComponent(row.goods))
+          var stockQuery = row.goods_id
+            ? 'select=*&id=eq.'+encodeURIComponent(row.goods_id)
+            : 'select=*&name=ilike.'+encodeURIComponent(row.goods);
+          return sbGet('stock', stockQuery)
             .then(function(items){
               if(!items||!items[0]) return;
               var s   = items[0];
@@ -1188,7 +1195,7 @@ function submitOrder(){
         var myPercent = item.qty * percent;
         return {
           type:'Заказ', operation_id:orderId,
-          customer:customer, goods:item.goodsName,
+          customer:customer, goods:item.goodsName, goods_id:item.goodsId,
           qty:item.qty, price_per_unit:item.price||0,
           pay_status:payStatus, pay_method:payMethod,
           delivery:delivery, comment:comment, status:'Активен',
