@@ -797,8 +797,25 @@ function renderOrders(){
     var km={order:'Заказ',transfer:'Перевод',trip:'Поездка',arrival:'Завоз'};
     cards=cards.filter(function(c){return km[c.kind]===typeFilter;});
   }
-  if(statusFilter==='active') cards=cards.filter(function(c){var s=c.data.status||'';return s!=='Завершён'&&s!=='Завершен'&&s!=='завершен-отмена';});
-  else if(statusFilter==='done') cards=cards.filter(function(c){var s=c.data.status||'';return s==='Завершён'||s==='Завершен'||s==='завершен-отмена';});
+  if(statusFilter==='active'){
+    cards=cards.filter(function(card){
+      if(card.kind==='transfer'){
+        // Для переводов: «Акт» = Ожидает (не Выполнен)
+        return card.data.transferStatus !== 'Выполнен';
+      }
+      var s=card.data.status||'';
+      return s!=='Завершён'&&s!=='Завершен'&&s!=='завершен-отмена';
+    });
+  } else if(statusFilter==='done'){
+    cards=cards.filter(function(card){
+      if(card.kind==='transfer'){
+        // Для переводов: «Зав» = Выполнен
+        return card.data.transferStatus === 'Выполнен';
+      }
+      var s=card.data.status||'';
+      return s==='Завершён'||s==='Завершен'||s==='завершен-отмена';
+    });
+  }
 
   document.getElementById('orders-count-label').textContent='Операций: '+cards.length;
   var container=document.getElementById('orders-list');
@@ -902,12 +919,40 @@ function renderOrderCard(d){
 }
 
 function renderTransferCard(d){
-  var done=d.transferStatus==='Выполнен';
-  return '<div class="op-card anim"><div class="op-card-head">'+
-    '<span class="op-type-badge transfer">Перевод</span><div style="font-size:11px;color:var(--text3)">'+esc(d.date)+'</div></div>'+
-    '<div class="op-amount">'+(d.amount?fmt(d.amount)+' ₾':'—')+'</div>'+
-    '<div style="font-size:14px;font-weight:700;color:'+(done?'var(--green)':'var(--coral)')+'">'+
-    (done?'✅ Выполнен':'⏳ Ожидает')+'</div></div>';
+  var done = d.transferStatus==='Выполнен';
+  var tid  = esc(d.id);
+  return '<div class="op-card anim" id="tcard-'+tid+'">'+
+    '<div class="op-card-head">'+
+      '<span class="op-type-badge transfer">Перевод</span>'+
+      '<div style="font-size:11px;color:var(--text3)">'+esc(d.date)+'</div>'+
+    '</div>'+
+    '<div style="display:flex;align-items:flex-end;justify-content:space-between;gap:8px">'+
+      '<div>'+
+        '<div class="op-amount">'+( d.amount?fmt(d.amount)+' ₾':'—')+'</div>'+
+        '<div style="font-size:13px;font-weight:700;color:'+(done?'var(--green)':'var(--coral)')+'">'+
+          (done?'✅ Выполнен':'⏳ Ожидает')+
+        '</div>'+
+      '</div>'+
+      (!done
+        ? '<button class="btn-complete" onclick="completeTransfer(''+tid+'',this)">Выполнить</button>'
+        : '')+
+    '</div>'+
+  '</div>';
+}
+
+function completeTransfer(operationId, btn){
+  if(btn){btn.disabled=true;btn.textContent='…';}
+  sbPatch('journal',
+    'operation_id=eq.'+encodeURIComponent(operationId)+'&type=eq.Перевод',
+    {transfer_status:'Выполнен'})
+    .then(function(){
+      toast('Перевод выполнен','ok');
+      openOrders();
+    })
+    .catch(function(){
+      toast('Ошибка','err');
+      if(btn){btn.disabled=false;btn.textContent='Выполнить';}
+    });
 }
 
 function renderTripCard(d){
