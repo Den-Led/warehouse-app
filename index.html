@@ -26,7 +26,7 @@
 html,body{height:100%;overflow:hidden;background:var(--bg)}
 body{font-family:'Manrope',sans-serif;color:var(--text);display:flex;flex-direction:column;font-size:17px}
 
-.screen{display:none;flex:1;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;padding-bottom:calc(var(--nav) + var(--safe-b) + 16px)}
+.screen{display:none;flex:1;overflow:hidden;min-height:0}
 .screen.vis{display:flex;flex-direction:column}
 .sec{display:none!important}.sec.vis{display:block!important}
 
@@ -55,10 +55,10 @@ body{font-family:'Manrope',sans-serif;color:var(--text);display:flex;flex-direct
 .icon-btn:active{background:var(--border)}
 
 /* ── SCROLL AREA ─────────────────────────────────────────── */
-.scroll-area{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:0 14px 10px}
+.scroll-area{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:0 14px calc(var(--nav) + var(--safe-b) + 16px) 14px;min-height:0}
 
 /* ── ГЛАВНЫЙ ЭКРАН ───────────────────────────────────────── */
-#sc-home{padding-bottom:calc(var(--nav) + var(--safe-b))}
+#sc-home{overflow-y:auto;padding-bottom:calc(var(--nav) + var(--safe-b) + 16px)}
 .home-hero{padding:28px 14px 20px;text-align:center}
 .home-logo{width:96px;height:96px;background:var(--accent);border-radius:24px;display:flex;align-items:center;justify-content:center;font-size:48px;margin:0 auto 16px}
 .home-title{font-size:36px;font-weight:800;letter-spacing:-.6px}
@@ -431,7 +431,7 @@ hr.div{border:none;border-top:1px solid var(--border);margin:14px 0}
   </div>
 
   <!-- СПИСОК КАРТОЧЕК — занимает всё оставшееся место -->
-  <div id="orders-list" style="flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:0 14px 12px;min-height:0"></div>
+  <div id="orders-list" style="flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:0 14px calc(var(--nav) + var(--safe-b) + 12px) 14px;min-height:0"></div>
 
 </div>
 
