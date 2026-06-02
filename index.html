@@ -973,34 +973,39 @@ function toggleDelivery(orderId,chk){
   var el=document.getElementById('del-val-'+orderId);
   if(el){el.textContent=isDelivered?'Доставлен':'Не дост.';el.className='mini-tog-val '+(isDelivered?'yes':'no');}
 
-  // Доставка ВКЛ:  reserved - qty, sold + qty
-  // Доставка ВЫКЛ: reserved + qty, sold - qty  (откат)
+  // Доставка ВКЛ:  reserved → sold
+  // Доставка ВЫКЛ: sold → reserved (откат)
+  // Запросы выполняются строго последовательно чтобы избежать race condition
   sbGet('journal','select=goods,qty&operation_id=eq.'+encodeURIComponent(orderId)+'&type=eq.Заказ')
     .then(function(rows){
       if(!rows||!rows.length) return;
-      return Promise.all(rows.map(function(row){
-        return sbGet('stock','select=*&name=eq.'+encodeURIComponent(row.goods))
-          .then(function(items){
-            if(!items||!items[0]) return;
-            var s   = items[0];
-            var qty = Number(row.qty)||0;
-            var updates;
-            if(isDelivered){
-              // reserved → sold
-              updates = {
-                reserved: Math.max(0, (Number(s.reserved)||0) - qty),
-                sold:                 (Number(s.sold)    ||0) + qty
-              };
-            } else {
-              // откат: sold → reserved
-              updates = {
-                reserved:             (Number(s.reserved)||0) + qty,
-                sold:     Math.max(0, (Number(s.sold)    ||0) - qty)
-              };
-            }
-            return sbPatch('stock','id=eq.'+encodeURIComponent(s.id), updates);
-          });
-      }));
+      // Последовательная цепочка — каждый следующий ждёт предыдущего
+      return rows.reduce(function(chain, row){
+        return chain.then(function(){
+          return sbGet('stock','select=*&name=eq.'+encodeURIComponent(row.goods))
+            .then(function(items){
+              if(!items||!items[0]){
+                console.error('Товар не найден в stock:', row.goods);
+                return;
+              }
+              var s   = items[0]; // свежие данные после предыдущего обновления
+              var qty = Number(row.qty)||0;
+              var updates;
+              if(isDelivered){
+                updates = {
+                  reserved: Math.max(0, (Number(s.reserved)||0) - qty),
+                  sold:                 (Number(s.sold)    ||0) + qty
+                };
+              } else {
+                updates = {
+                  reserved:             (Number(s.reserved)||0) + qty,
+                  sold:     Math.max(0, (Number(s.sold)    ||0) - qty)
+                };
+              }
+              return sbPatch('stock','id=eq.'+encodeURIComponent(s.id), updates);
+            });
+        });
+      }, Promise.resolve());
     })
     .catch(function(e){ console.error('delivery toggle error:', e); });
 }
@@ -1028,25 +1033,26 @@ function doReturnOrder(){
   sbGet('journal','select=goods,qty,delivery&operation_id=eq.'+encodeURIComponent(orderId)+'&type=eq.Заказ')
     .then(function(rows){
       if(!rows||!rows.length) return Promise.resolve();
-      return Promise.all(rows.map(function(row){
-        return sbGet('stock','select=*&name=eq.'+encodeURIComponent(row.goods))
-          .then(function(items){
-            if(!items||!items[0]) return;
-            var s   = items[0];
-            var qty = Number(row.qty)||0;
-            var updates = {};
-            if(row.delivery==='Да'){
-              // Если товар уже был доставлен — вернуть из sold в available
-              updates.available = (Number(s.available)||0) + qty;
-              updates.sold      = Math.max(0,(Number(s.sold)||0) - qty);
-            } else {
-              // Иначе вернуть из reserved в available
-              updates.available = (Number(s.available)||0) + qty;
-              updates.reserved  = Math.max(0,(Number(s.reserved)||0) - qty);
-            }
-            return sbPatch('stock','id=eq.'+encodeURIComponent(s.id), updates);
-          });
-      }));
+      // Последовательно чтобы избежать race condition
+      return rows.reduce(function(chain, row){
+        return chain.then(function(){
+          return sbGet('stock','select=*&name=eq.'+encodeURIComponent(row.goods))
+            .then(function(items){
+              if(!items||!items[0]) return;
+              var s   = items[0];
+              var qty = Number(row.qty)||0;
+              var updates = {};
+              if(row.delivery==='Да'){
+                updates.available = (Number(s.available)||0) + qty;
+                updates.sold      = Math.max(0,(Number(s.sold)||0) - qty);
+              } else {
+                updates.available = (Number(s.available)||0) + qty;
+                updates.reserved  = Math.max(0,(Number(s.reserved)||0) - qty);
+              }
+              return sbPatch('stock','id=eq.'+encodeURIComponent(s.id), updates);
+            });
+        });
+      }, Promise.resolve());
     })
     .then(function(){
       // Ставим статус «завершен-отмена»
