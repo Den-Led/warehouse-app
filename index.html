@@ -515,9 +515,10 @@ hr.div{border:none;border-top:1px solid var(--border);margin:14px 0}
   <div class="popup">
     <div class="popup-handle"></div>
     <div class="popup-title">Завершить заказ?</div>
-    <div class="popup-sub">Товар будет списан со склада. Это действие нельзя отменить.</div>
+    <div class="popup-sub">Выберите действие:</div>
     <div class="popup-btns">
-      <button class="popup-btn danger"  onclick="doCompleteConfirmed()">Да, завершить</button>
+      <button class="popup-btn success" onclick="doCompleteConfirmed()">✓ Да, завершить</button>
+      <button class="popup-btn danger"  onclick="doReturnOrder()">↩ Возврат</button>
       <button class="popup-btn cancel"  onclick="closePopup('pop-complete')">Отмена</button>
     </div>
   </div>
@@ -952,9 +953,41 @@ function cancelPayPop(){
   _pendingPayOrderId=null; _pendingPayToggle=null;
 }
 function toggleDelivery(orderId,chk){
-  updateOrderField(orderId,'delivery',chk.checked?'Да':'Нет','','');
+  var isDelivered = chk.checked;
+  updateOrderField(orderId,'delivery',isDelivered?'Да':'Нет','','');
   var el=document.getElementById('del-val-'+orderId);
-  if(el){el.textContent=chk.checked?'Доставлен':'Не дост.';el.className='mini-tog-val '+(chk.checked?'yes':'no');}
+  if(el){el.textContent=isDelivered?'Доставлен':'Не дост.';el.className='mini-tog-val '+(isDelivered?'yes':'no');}
+
+  // Доставка ВКЛ:  reserved - qty, sold + qty
+  // Доставка ВЫКЛ: reserved + qty, sold - qty  (откат)
+  sbGet('journal','select=goods,qty&operation_id=eq.'+encodeURIComponent(orderId)+'&type=eq.Заказ')
+    .then(function(rows){
+      if(!rows||!rows.length) return;
+      return Promise.all(rows.map(function(row){
+        return sbGet('stock','select=*&name=eq.'+encodeURIComponent(row.goods))
+          .then(function(items){
+            if(!items||!items[0]) return;
+            var s   = items[0];
+            var qty = Number(row.qty)||0;
+            var updates;
+            if(isDelivered){
+              // reserved → sold
+              updates = {
+                reserved: Math.max(0, (Number(s.reserved)||0) - qty),
+                sold:                 (Number(s.sold)    ||0) + qty
+              };
+            } else {
+              // откат: sold → reserved
+              updates = {
+                reserved:             (Number(s.reserved)||0) + qty,
+                sold:     Math.max(0, (Number(s.sold)    ||0) - qty)
+              };
+            }
+            return sbPatch('stock','id=eq.'+encodeURIComponent(s.id), updates);
+          });
+      }));
+    })
+    .catch(function(e){ console.error('delivery toggle error:', e); });
 }
 function updateOrderField(orderId,f1,v1,f2,v2){
   var body = {};
@@ -969,35 +1002,62 @@ function askComplete(orderId,btn){
   _pendingCompleteId=orderId; _pendingCompleteBtn=btn;
   document.getElementById('pop-complete').classList.remove('hidden');
 }
+function doReturnOrder(){
+  closePopup('pop-complete');
+  if(!_pendingCompleteId) return;
+  var orderId=_pendingCompleteId, btn=_pendingCompleteBtn;
+  if(btn){btn.disabled=true;btn.textContent='…';}
+  _pendingCompleteId=null; _pendingCompleteBtn=null;
+
+  // Возвращаем зарезервированные товары в available
+  sbGet('journal','select=goods,qty,delivery&operation_id=eq.'+encodeURIComponent(orderId)+'&type=eq.Заказ')
+    .then(function(rows){
+      if(!rows||!rows.length) return Promise.resolve();
+      return Promise.all(rows.map(function(row){
+        return sbGet('stock','select=*&name=eq.'+encodeURIComponent(row.goods))
+          .then(function(items){
+            if(!items||!items[0]) return;
+            var s   = items[0];
+            var qty = Number(row.qty)||0;
+            var updates = {};
+            if(row.delivery==='Да'){
+              // Если товар уже был доставлен — вернуть из sold в available
+              updates.available = (Number(s.available)||0) + qty;
+              updates.sold      = Math.max(0,(Number(s.sold)||0) - qty);
+            } else {
+              // Иначе вернуть из reserved в available
+              updates.available = (Number(s.available)||0) + qty;
+              updates.reserved  = Math.max(0,(Number(s.reserved)||0) - qty);
+            }
+            return sbPatch('stock','id=eq.'+encodeURIComponent(s.id), updates);
+          });
+      }));
+    })
+    .then(function(){
+      // Ставим статус «завершен-отмена»
+      return sbPatch('journal',
+        'operation_id=eq.'+encodeURIComponent(orderId)+'&type=eq.Заказ',
+        {status:'завершен-отмена'});
+    })
+    .then(function(){
+      toast('Заказ отменён, товар возвращён','ok');
+      loadStock(); openOrders();
+    })
+    .catch(function(){
+      toast('Ошибка','err');
+      if(btn){btn.disabled=false;btn.textContent='Завершить';}
+    });
+}
+
 function doCompleteConfirmed(){
   closePopup('pop-complete');
   if(!_pendingCompleteId) return;
   var orderId=_pendingCompleteId, btn=_pendingCompleteBtn;
   if(btn){btn.disabled=true;btn.textContent='…';}
-  // 1. Найти все строки заказа, снять бронь со склада
-  sbGet('journal', 'operation_id=eq.'+encodeURIComponent(orderId)+'&type=eq.Заказ')
-    .then(function(rows){
-      var promises = (rows||[]).map(function(row){
-        if(row.status==='Завершён') return Promise.resolve();
-        // Снять бронь и списать с остатка
-        return sbGet('stock', 'name=eq.'+encodeURIComponent(row.goods))
-          .then(function(items){
-            if(!items||!items[0]) return;
-            var item=items[0];
-            var newReserved = Math.max(0,(item.reserved||0)-row.qty);
-            var newTotal    = Math.max(0,(item.total||0)-row.qty);
-            return sbPatch('stock','id=eq.'+encodeURIComponent(item.id),
-              {reserved:newReserved, total:newTotal});
-          });
-      });
-      return Promise.all(promises);
-    })
-    .then(function(){
-      // Обновить статус всех строк заказа
-      return sbPatch('journal',
-        'operation_id=eq.'+encodeURIComponent(orderId)+'&type=eq.Заказ',
-        {status:'Завершён'});
-    })
+  // Просто меняем статус — движение товара произошло при переключении доставки
+  sbPatch('journal',
+    'operation_id=eq.'+encodeURIComponent(orderId)+'&type=eq.Заказ',
+    {status:'Завершён'})
     .then(function(){
       toast('Заказ завершён','ok'); loadStock(); openOrders();
     })
