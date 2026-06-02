@@ -164,15 +164,15 @@ textarea{resize:vertical;min-height:88px}
 .sbtn:active{opacity:.7}.sbtn.on{border-color:var(--accent);background:rgba(79,126,255,.12);color:var(--accent)}
 
 /* ── КАРТОЧКА ЗАКАЗА ─────────────────────────────────────── */
-.op-card{background:var(--surf);border:1px solid var(--border);border-radius:var(--r);padding:10px 12px;margin-bottom:10px}
+.op-card{background:var(--surf);border:1px solid var(--border);border-radius:var(--r);padding:10px 12px;margin-bottom:12px}
 /* op-card-inner убран — карточка одноколоночная */
-.op-customer{font-size:17px;font-weight:700;margin-bottom:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.op-goods-list{display:flex;flex-direction:column;gap:2px;margin-bottom:3px}
+.op-customer{font-size:17px;font-weight:700;margin-bottom:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.op-goods-list{display:flex;flex-direction:column;gap:2px;margin-bottom:0}
 .op-goods-row{display:grid;grid-template-columns:1fr auto auto;gap:6px;align-items:center}
 .op-goods-name{font-size:15px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .op-goods-qty{font-size:14px;color:var(--text2);white-space:nowrap}
 .op-goods-sum{font-size:15px;font-weight:600;color:var(--amber);white-space:nowrap;text-align:right}
-.op-divider{border:none;border-top:1px solid var(--border);margin:7px 0}
+.op-divider{border:none;border-top:1px solid var(--border);margin:5px 0}
 .op-bottom{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .op-total-label{font-size:11px;color:var(--text2)}
 .op-total-val{font-size:20px;font-weight:800;letter-spacing:-.3px}
@@ -206,9 +206,9 @@ textarea{resize:vertical;min-height:88px}
 }
 .emoji-toggle input:checked + .emoji-track .emoji-knob{transform:translateX(30px)}
 .emoji-name{
-  position:absolute;right:5px;top:50%;transform:translateY(-50%);
-  font-size:12px;font-weight:800;color:#fff;letter-spacing:-.2px;
-  opacity:0;transition:opacity .15s;pointer-events:none;text-shadow:0 1px 2px rgba(0,0,0,.2);
+  position:absolute;left:6px;top:50%;transform:translateY(-50%);
+  font-size:11px;font-weight:800;color:#fff;letter-spacing:-.2px;
+  opacity:0;transition:opacity .15s;pointer-events:none;text-shadow:0 1px 2px rgba(0,0,0,.3);white-space:nowrap;
 }
 .emoji-toggle input:checked + .emoji-track .emoji-name{opacity:1}
 /* mini-toggle оставляем для обратной совместимости */
@@ -223,7 +223,7 @@ textarea{resize:vertical;min-height:88px}
 .btn-complete{background:transparent;border:1.5px solid var(--accent);border-radius:var(--rs);color:var(--accent);font-family:'Manrope',sans-serif;font-size:13px;font-weight:700;padding:10px 0;width:100%;cursor:pointer;text-align:center;display:block}
 .btn-complete:active{background:var(--accent);color:#fff}.btn-complete:disabled{opacity:.4}
 .op-status-done{font-size:11px;font-weight:700;color:var(--green);background:rgba(46,204,138,.1);border:1px solid rgba(46,204,138,.25);border-radius:10px;padding:5px 7px;text-align:center;line-height:1.3}
-.op-card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:8px}
+.op-card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:3px}
 .op-amount{font-size:28px;font-weight:800;letter-spacing:-.5px;margin:5px 0 8px}
 .op-tr-status.yes{color:var(--green)}.op-tr-status.no{color:var(--coral)}
 .empty-state{text-align:center;padding:60px 20px;color:var(--text3);font-size:16px}
@@ -834,7 +834,7 @@ function renderOrderCard(d){
     '<div class="op-card anim" id="card-'+oid+'">'+
 
       // ── Строка 1: имя заказчика + тогглы справа ──
-      '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:8px">'+
+      '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:3px">'+
         '<div class="op-customer" style="flex:1">'+esc(d.customer||'—')+'</div>'+
         '<div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;flex-shrink:0">'+
           togglesHtml+
