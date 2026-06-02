@@ -164,10 +164,10 @@ textarea{resize:vertical;min-height:88px}
 .sbtn:active{opacity:.7}.sbtn.on{border-color:var(--accent);background:rgba(79,126,255,.12);color:var(--accent)}
 
 /* ── КАРТОЧКА ЗАКАЗА ─────────────────────────────────────── */
-.op-card{background:var(--surf);border:1px solid var(--border);border-radius:var(--r);padding:14px 14px;margin-bottom:12px}
+.op-card{background:var(--surf);border:1px solid var(--border);border-radius:var(--r);padding:10px 12px;margin-bottom:10px}
 /* op-card-inner убран — карточка одноколоночная */
-.op-customer{font-size:18px;font-weight:700;margin-bottom:5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.op-goods-list{display:flex;flex-direction:column;gap:4px;margin-bottom:5px}
+.op-customer{font-size:17px;font-weight:700;margin-bottom:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.op-goods-list{display:flex;flex-direction:column;gap:2px;margin-bottom:3px}
 .op-goods-row{display:grid;grid-template-columns:1fr auto auto;gap:6px;align-items:center}
 .op-goods-name{font-size:15px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .op-goods-qty{font-size:14px;color:var(--text2);white-space:nowrap}
@@ -206,9 +206,9 @@ textarea{resize:vertical;min-height:88px}
 }
 .emoji-toggle input:checked + .emoji-track .emoji-knob{transform:translateX(30px)}
 .emoji-name{
-  position:absolute;right:6px;top:50%;transform:translateY(-50%);
-  font-size:11px;font-weight:800;color:#fff;letter-spacing:-.3px;
-  opacity:0;transition:opacity .15s;pointer-events:none;
+  position:absolute;right:5px;top:50%;transform:translateY(-50%);
+  font-size:12px;font-weight:800;color:#fff;letter-spacing:-.2px;
+  opacity:0;transition:opacity .15s;pointer-events:none;text-shadow:0 1px 2px rgba(0,0,0,.2);
 }
 .emoji-toggle input:checked + .emoji-track .emoji-name{opacity:1}
 /* mini-toggle оставляем для обратной совместимости */
@@ -827,11 +827,8 @@ function renderOrderCard(d){
     '<div class="op-toggls">'+
       '<div class="emoji-toggle-wrap">'+payToggle+'</div>'+
       '<div class="emoji-toggle-wrap">'+delToggle+'</div>'+
-    '</div>'+
-    (isDone
-      ? '<div class="op-status-done">✓ Завершён</div>'
-      : '<button class="btn-complete" id="bcmp-'+oid+'"'+
-        ' onclick="askComplete(this.dataset.oid,this)" data-oid="'+oid+'">Завершить</button>');
+    '</div>';
+
 
   return (
     '<div class="op-card anim" id="card-'+oid+'">'+
@@ -848,25 +845,19 @@ function renderOrderCard(d){
       '<div class="op-goods-list">'+itemsHtml+'</div>'+
 
       // ── Разделитель ──
-      '<hr class="op-divider">'+
+      '<hr class="op-divider" style="margin:5px 0">'+
 
-      // ── Строка 3: итого + мета ──
-      '<div class="op-bottom">'+
-        '<div style="display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap">'+
-          '<div><div class="op-total-label">Итого</div>'+
-            '<div class="op-total-val">'+(total>0?fmt(total)+' ₾':'—')+'</div>'+
-          '</div>'+
+      // ── Строка 3: итого слева + кнопка справа ──
+      '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px">'+
+        '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">'+
+          '<div class="op-total-val">'+(total>0?fmt(total)+' ₾':'—')+'</div>'+
           (d.totalPercent>0
-            ? '<div style="background:rgba(167,139,250,.12);border:1px solid rgba(167,139,250,.3);border-radius:8px;padding:4px 10px;text-align:center">'+
-                '<div style="font-size:15px;font-weight:700;color:var(--violet)">'+fmt(d.totalPercent)+' ₾</div>'+
+            ? '<div style="background:rgba(167,139,250,.12);border:1px solid rgba(167,139,250,.3);border-radius:8px;padding:3px 10px">'+
+                '<div style="font-size:14px;font-weight:700;color:var(--violet)">'+fmt(d.totalPercent)+' ₾</div>'+
               '</div>'
             : '')+
-        '</div>'+
-        '<div class="op-meta-row">'+
-          '<span class="op-type-inline order">Заказ</span>'+
-          '<span class="op-id">'+oid+'</span>'+
-          '<span class="op-date">'+esc(d.date)+'</span>'+
-        '</div>'+
+          (isDone?'':'<button class="btn-complete" id="bcmp-'+oid+'" onclick="askComplete(this.dataset.oid,this)" data-oid="'+oid+'">Завершить</button>')+
+        (isDone?'<div class="op-status-done" style="margin-left:auto">✓ Завершён</div>':'')+
       '</div>'+
 
     '</div>'
