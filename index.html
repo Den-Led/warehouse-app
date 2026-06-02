@@ -1304,7 +1304,7 @@ function submitArrival(){
       var newId = 'G'+Date.now()+Math.floor(Math.random()*1000);
       return sbPost('stock',[{
         id:newId, name:item.goodsName,
-        price:item.price||0, available:item.qty, reserved:0, total:item.qty
+        price:item.price||0, available:item.qty, reserved:0
       }]).then(function(){
         return sbPost('journal',[{
           type:'Завоз', operation_id:delivId,
@@ -1318,7 +1318,7 @@ function submitArrival(){
         .then(function(rows){
           if(!rows||!rows[0]) return;
           var row=rows[0];
-          var updates={available:(row.available||0)+item.qty, total:(row.total||0)+item.qty};
+          var updates={available:(row.available||0)+item.qty};
           if(item.price>0) updates.price=item.price;
           return sbPatch('stock','id=eq.'+encodeURIComponent(row.id),updates)
             .then(function(){
