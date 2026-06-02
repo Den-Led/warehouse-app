@@ -404,28 +404,35 @@ hr.div{border:none;border-top:1px solid var(--border);margin:14px 0}
 
 <!-- ══ ЗАКАЗЫ ════════════════════════════════════════════════ -->
 <div class="screen" id="sc-orders">
-  <div class="page-hd">
-    <div>
-      <div class="page-hd-title">Заказы</div>
-      <div class="page-hd-sub" id="orders-count-label">Загрузка…</div>
+
+  <!-- ТОПБАР: Заказы + обновить + Все/Акт/Зав -->
+  <div style="display:flex;align-items:center;gap:8px;padding:14px 14px 10px;flex-shrink:0">
+    <div style="flex:1;min-width:0">
+      <div style="font-size:26px;font-weight:800;letter-spacing:-.4px;line-height:1">Заказы</div>
+      <div style="font-size:13px;color:var(--text2);margin-top:2px" id="orders-count-label">Загрузка…</div>
     </div>
-    <button class="icon-btn" onclick="openOrders()" title="Обновить">↻</button>
+    <button class="icon-btn" onclick="openOrders()" style="flex-shrink:0">↻</button>
+    <div style="display:flex;gap:5px;flex-shrink:0">
+      <button id="sb-all"    onclick="setStatusFilter('all')"    style="background:var(--surf);border:1.5px solid var(--border);border-radius:10px;padding:7px 12px;font-family:'Manrope',sans-serif;font-size:14px;font-weight:700;color:var(--text2);cursor:pointer;transition:all .15s">Все</button>
+      <button id="sb-active" onclick="setStatusFilter('active')" style="background:var(--surf);border:1.5px solid var(--border);border-radius:10px;padding:7px 12px;font-family:'Manrope',sans-serif;font-size:14px;font-weight:700;color:var(--text2);cursor:pointer;transition:all .15s">Акт</button>
+      <button id="sb-done"   onclick="setStatusFilter('done')"   style="background:var(--surf);border:1.5px solid var(--border);border-radius:10px;padding:7px 12px;font-family:'Manrope',sans-serif;font-size:14px;font-weight:700;color:var(--text2);cursor:pointer;transition:all .15s">Зав</button>
+    </div>
   </div>
-  <div class="filter-wrap">
-    <div class="filter-bar">
+
+  <!-- ТИП-ФИЛЬТРЫ -->
+  <div style="padding:0 14px;flex-shrink:0">
+    <div style="display:flex;gap:8px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;padding-bottom:10px">
       <button class="fbtn" id="fb-all"      onclick="setTypeFilter('')">Все</button>
       <button class="fbtn" id="fb-order"    onclick="setTypeFilter('Заказ')">📦 Заказ</button>
       <button class="fbtn" id="fb-transfer" onclick="setTypeFilter('Перевод')">💸 Перевод</button>
       <button class="fbtn" id="fb-trip"     onclick="setTypeFilter('Поездка')">🚚 Поездка</button>
       <button class="fbtn" id="fb-arrival"  onclick="setTypeFilter('Завоз')">📥 Завоз</button>
     </div>
-    <div class="status-bar">
-      <button class="sbtn on" id="sb-all"    onclick="setStatusFilter('all')">Все</button>
-      <button class="sbtn"    id="sb-active" onclick="setStatusFilter('active')">Активные</button>
-      <button class="sbtn"    id="sb-done"   onclick="setStatusFilter('done')">Завершённые</button>
-    </div>
   </div>
-  <div class="scroll-area" id="orders-list"></div>
+
+  <!-- СПИСОК КАРТОЧЕК — занимает всё оставшееся место -->
+  <div id="orders-list" style="flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:0 14px 12px;min-height:0"></div>
+
 </div>
 
 <!-- ══ НИЖНЯЯ НАВИГАЦИЯ ══════════════════════════════════════ -->
@@ -703,8 +710,19 @@ function setTypeFilter(t){
 }
 function setStatusFilter(s){
   statusFilter=s;
-  ['sb-all','sb-active','sb-done'].forEach(function(id){document.getElementById(id).classList.remove('on');});
-  document.getElementById('sb-'+s).classList.add('on');
+  ['sb-all','sb-active','sb-done'].forEach(function(id){
+    var el=document.getElementById(id);
+    if(!el) return;
+    el.style.background='var(--surf)';
+    el.style.borderColor='var(--border)';
+    el.style.color='var(--text2)';
+  });
+  var active=document.getElementById('sb-'+s);
+  if(active){
+    active.style.background='rgba(79,126,255,.15)';
+    active.style.borderColor='var(--accent)';
+    active.style.color='var(--accent)';
+  }
   renderOrders();
 }
 
@@ -712,6 +730,7 @@ function setStatusFilter(s){
 // ЗАГРУЗКА И РЕНДЕР ЗАКАЗОВ
 // ══════════════════════════════════════════════════════════════
 function openOrders(){
+  setStatusFilter(statusFilter); // подсветить активную кнопку
   document.getElementById('orders-count-label').textContent='Загрузка…';
   document.getElementById('orders-list').innerHTML='<div class="empty-state"><span class="ei">⏳</span>Загружаем данные…</div>';
   sbGet('journal', 'select=*&order=date.desc')
