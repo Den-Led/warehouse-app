@@ -503,31 +503,50 @@ hr.div{border:none;border-top:1px solid var(--border);margin:14px 0}
 var SB_URL = 'https://pnwgddczoyvpmzeqikcj.supabase.co';
 var SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBud2dkZGN6b3l2cG16ZXFpa2NqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAzMTgxMTcsImV4cCI6MjA5NTg5NDExN30.YgV9_osTuMtx7FRiboAlJZvtJqO0rRGbiAbpj1ahksc';
 
-function sbHeaders() {
-  return {
+function sbHeaders(extra) {
+  var h = {
     'apikey': SB_KEY,
     'Authorization': 'Bearer ' + SB_KEY,
-    'Content-Type': 'application/json',
-    'Prefer': 'return=representation'
+    'Content-Type': 'application/json'
   };
+  if (extra) Object.assign(h, extra);
+  return h;
 }
 function sbGet(table, query) {
   var url = SB_URL + '/rest/v1/' + table + (query ? '?' + query : '');
-  return fetch(url, { headers: sbHeaders() }).then(function(r){ return r.json(); });
+  return fetch(url, {
+    method: 'GET',
+    mode: 'cors',
+    headers: sbHeaders()
+  }).then(function(r){
+    if(!r.ok) throw new Error('HTTP ' + r.status);
+    return r.json();
+  });
 }
 function sbPost(table, body) {
   return fetch(SB_URL + '/rest/v1/' + table, {
     method: 'POST',
-    headers: sbHeaders(),
+    mode: 'cors',
+    headers: sbHeaders({'Prefer': 'return=minimal'}),
     body: JSON.stringify(body)
-  }).then(function(r){ return r.json(); });
+  }).then(function(r){
+    if(!r.ok) throw new Error('HTTP ' + r.status);
+    // return=minimal возвращает пустой ответ — обрабатываем это
+    var ct = r.headers.get('content-type') || '';
+    if(ct.indexOf('json') !== -1) return r.json();
+    return {ok: true};
+  });
 }
 function sbPatch(table, query, body) {
   return fetch(SB_URL + '/rest/v1/' + table + '?' + query, {
     method: 'PATCH',
-    headers: sbHeaders(),
+    mode: 'cors',
+    headers: sbHeaders({'Prefer': 'return=minimal'}),
     body: JSON.stringify(body)
-  }).then(function(r){ return r.json(); });
+  }).then(function(r){
+    if(!r.ok) throw new Error('HTTP ' + r.status);
+    return {ok: true};
+  });
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -565,7 +584,7 @@ loadStock();
 // ЗАГРУЗКА СКЛАДА из Supabase
 // ══════════════════════════════════════════════════════════════
 function loadStock() {
-  sbGet('stock', 'order=name.asc')
+  sbGet('stock', 'select=*&order=name.asc')
     .then(function(items){
       stockItems = Array.isArray(items) ? items : [];
       stockReady = true;
@@ -580,7 +599,7 @@ function loadStock() {
 function reloadStock() {
   var btn=document.getElementById('btn-refresh-stock');
   if(btn){ btn.style.opacity='.4'; btn.style.pointerEvents='none'; }
-  sbGet('stock', 'order=name.asc')
+  sbGet('stock', 'select=*&order=name.asc')
     .then(function(items){
       stockItems=Array.isArray(items)?items:[]; stockReady=true;
       refreshAllSelects();
@@ -955,12 +974,15 @@ function submitOrder(){
   var orderId  = generateId('ORD');
 
   // Проверяем наличие и бронируем
+  // select=* — явно запрашиваем все поля включая percent
   var checkPromises = items.map(function(item){
-    return sbGet('stock','name=eq.'+encodeURIComponent(item.goodsName))
+    return sbGet('stock','select=*&name=eq.'+encodeURIComponent(item.goodsName))
       .then(function(rows){
         if(!rows||!rows[0]) return {ok:false,error:'"'+item.goodsName+'" не найден на складе'};
         var row=rows[0];
         if((row.available||0) < item.qty) return {ok:false,error:'"'+item.goodsName+'": нужно '+item.qty+', доступно '+row.available};
+        // Логируем для отладки
+        console.log('Товар:', item.goodsName, '| qty:', item.qty, '| percent из склада:', row.percent, '| my_percent будет:', item.qty * (Number(row.percent)||0));
         return {ok:true,row:row,item:item};
       });
   });
