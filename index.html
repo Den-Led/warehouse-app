@@ -934,7 +934,7 @@ function renderTransferCard(d){
         '</div>'+
       '</div>'+
       (!done
-        ? '<button class="btn-complete" onclick="completeTransfer(''+tid+'',this)">Выполнить</button>'
+        ? '<button class="btn-complete" onclick="completeTransfer(this.dataset.tid,this)" data-tid="'+tid+'">Выполнить</button>'
         : '')+
     '</div>'+
   '</div>';
