@@ -766,13 +766,24 @@ function renderOrders(){
   var groups={}, singles=[];
   allEntries.forEach(function(e){
     if(e.type==='Заказ'){
-      if(!groups[e.id]) groups[e.id]={id:e.id,date:e.date,customer:e.customer,
-        payStatus:e.payStatus,payMethod:e.payMethod,delivery:e.delivery,
-        comment:e.comment,status:e.status,items:[],totalPercent:0};
+      if(!groups[e.id]){
+        // Статус берём один раз из первой строки — все строки заказа имеют одинаковый статус
+        groups[e.id]={id:e.id,date:e.date,customer:e.customer,
+          payStatus:e.payStatus,payMethod:e.payMethod,delivery:e.delivery,
+          comment:e.comment,status:e.status,items:[],totalPercent:0};
+      }
       groups[e.id].items.push({name:e.goods,qty:e.qty,price:e.price});
       groups[e.id].totalPercent += e.my_percent || 0;
-      if(e.status!=='Завершён'&&e.status!=='завершен-отмена') groups[e.id].status='Активен';
-      if(e.status==='завершен-отмена') groups[e.id].status='завершен-отмена';
+      // Обновляем статус группы только если текущая строка «активнее»
+      // Приоритет: завершен-отмена > Завершён > Активен
+      var s = e.status||'';
+      if(s==='завершен-отмена'){
+        groups[e.id].status='завершен-отмена';
+      } else if(s==='Завершён'||s==='Завершен'){
+        if(groups[e.id].status!=='завершен-отмена') groups[e.id].status='Завершён';
+      } else {
+        if(groups[e.id].status!=='Завершён'&&groups[e.id].status!=='завершен-отмена') groups[e.id].status='Активен';
+      }
     } else singles.push(e);
   });
   var cards=[];
