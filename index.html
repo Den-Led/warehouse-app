@@ -856,8 +856,10 @@ function renderOrderCard(d){
                 '<div style="font-size:14px;font-weight:700;color:var(--violet)">'+fmt(d.totalPercent)+' ₾</div>'+
               '</div>'
             : '')+
-          (isDone?'':'<button class="btn-complete" id="bcmp-'+oid+'" onclick="askComplete(this.dataset.oid,this)" data-oid="'+oid+'">Завершить</button>')+
-        (isDone?'<div class="op-status-done" style="margin-left:auto">✓ Завершён</div>':'')+
+        '</div>'+
+        (isDone
+          ? '<div class="op-status-done">✓ Завершён</div>'
+          : '<button class="btn-complete" id="bcmp-'+oid+'" onclick="askComplete(this.dataset.oid,this)" data-oid="'+oid+'">Завершить</button>')+
       '</div>'+
 
     '</div>'
