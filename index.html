@@ -692,7 +692,7 @@ function setStatusFilter(s){
 function openOrders(){
   document.getElementById('orders-count-label').textContent='Загрузка…';
   document.getElementById('orders-list').innerHTML='<div class="empty-state"><span class="ei">⏳</span>Загружаем данные…</div>';
-  sbGet('journal', 'order=date.desc')
+  sbGet('journal', 'select=*&order=date.desc')
     .then(function(rows){
       // Преобразуем колонки Supabase в формат приложения
       allEntries = (rows||[]).map(function(r){
@@ -763,11 +763,12 @@ function renderOrderCard(d){
   var total=d.items.reduce(function(s,it){return s+(it.qty*(it.price||0));},0);
   var oid=esc(d.id);
   var payName=paid&&d.payMethod?d.payMethod.replace('Оплатили ',''):'';
+  console.log('Card:', d.id, '| totalPercent:', d.totalPercent, '| type:', typeof d.totalPercent);
   var itemsHtml=d.items.map(function(it){
     var sum=it.qty*(it.price||0);
     return '<div class="op-goods-row"><span class="op-goods-name">'+esc(it.name)+'</span>'+
       '<span class="op-goods-qty">'+it.qty+' шт.</span>'+
-      '<span class="op-goods-sum">'+(sum>0?sum.toFixed(2)+' ₾':'—')+'</span></div>';
+      '<span class="op-goods-sum">'+(sum>0?fmt(sum)+' ₾':'—')+'</span></div>';
   }).join('');
   var rightHtml=
     '<div class="op-toggls">'+
@@ -790,10 +791,9 @@ function renderOrderCard(d){
       '<div class="op-goods-list">'+itemsHtml+'</div></div>'+
       '<div><hr class="op-divider"><div class="op-bottom">'+
         '<div style="display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap">'+
-          '<div><div class="op-total-label">Итого</div><div class="op-total-val">'+(total>0?total.toFixed(2)+' ₾':'—')+'</div></div>'+
+          '<div><div class="op-total-label">Итого</div><div class="op-total-val">'+(total>0?fmt(total)+' ₾':'—')+'</div></div>'+
           (d.totalPercent>0?'<div style="background:rgba(167,139,250,.12);border:1px solid rgba(167,139,250,.3);border-radius:8px;padding:4px 10px;text-align:center">'+
-            '<div style="font-size:10px;font-weight:700;color:var(--violet);letter-spacing:.3px;text-transform:uppercase">%</div>'+
-            '<div style="font-size:15px;font-weight:700;color:var(--violet)">'+d.totalPercent.toFixed(2)+' ₾</div>'+
+            '<div style="font-size:15px;font-weight:700;color:var(--violet)">'+fmt(d.totalPercent)+' ₾</div>'+
           '</div>':'')+
         '</div>'+
         '<div class="op-meta-row"><span class="op-type-inline order">Заказ</span>'+
@@ -806,7 +806,7 @@ function renderTransferCard(d){
   var done=d.transferStatus==='Выполнен';
   return '<div class="op-card anim"><div class="op-card-head">'+
     '<span class="op-type-badge transfer">Перевод</span><div style="font-size:11px;color:var(--text3)">'+esc(d.date)+'</div></div>'+
-    '<div class="op-amount">'+(d.amount?d.amount.toFixed(2)+' ₾':'—')+'</div>'+
+    '<div class="op-amount">'+(d.amount?fmt(d.amount)+' ₾':'—')+'</div>'+
     '<div style="font-size:14px;font-weight:700;color:'+(done?'var(--green)':'var(--coral)')+'">'+
     (done?'✅ Выполнен':'⏳ Ожидает')+'</div></div>';
 }
@@ -816,10 +816,10 @@ function renderTripCard(d){
   return '<div class="op-card anim"><div class="op-card-head">'+
     '<span class="op-type-badge trip">Поездка</span><div style="font-size:11px;color:var(--text3)">'+esc(d.date)+'</div></div>'+
     '<div class="op-goods-list" style="margin-bottom:8px">'+
-      '<div class="op-goods-row"><span class="op-goods-name">Логистика</span><span class="op-goods-sum">'+(d.amount||0).toFixed(2)+' ₾</span></div>'+
-      '<div class="op-goods-row"><span class="op-goods-name">Экспедитор</span><span class="op-goods-sum">'+(d.expeditor||0).toFixed(2)+' ₾</span></div></div>'+
+      '<div class="op-goods-row"><span class="op-goods-name">Логистика</span><span class="op-goods-sum">'+fmt(d.amount||0)+' ₾</span></div>'+
+      '<div class="op-goods-row"><span class="op-goods-name">Экспедитор</span><span class="op-goods-sum">'+fmt(d.expeditor||0)+' ₾</span></div></div>'+
     '<hr class="op-divider"><div class="op-total-label">Итого расходов</div>'+
-    '<div class="op-total-val">'+total.toFixed(2)+' ₾</div></div>';
+    '<div class="op-total-val">'+fmt(total)+' ₾</div></div>';
 }
 
 function renderArrivalCard(d){
@@ -828,7 +828,7 @@ function renderArrivalCard(d){
     '<div class="op-goods-list">'+
       '<div class="op-goods-row"><span class="op-goods-name">'+esc(d.goods||'—')+'</span>'+
         '<span class="op-goods-qty">'+(d.qty?d.qty+' шт.':'')+'</span>'+
-        '<span class="op-goods-sum">'+(d.price?d.price.toFixed(2)+' ₾/шт':'')+'</span></div></div>'+
+        '<span class="op-goods-sum">'+(d.price?fmt(d.price)+' ₾/шт':'')+'</span></div></div>'+
     (d.comment?'<div style="font-size:12px;color:var(--text3);margin-top:6px">'+esc(d.comment)+'</div>':'')+
   '</div>';
 }
@@ -945,14 +945,14 @@ function onGoodsChange(i){
   var opt=sel.options[sel.selectedIndex];
   if(!sel.value){badge.innerHTML='';badge.className='item-badge';return;}
   var av=parseInt(opt.getAttribute('data-av')||'0',10),pr=parseFloat(opt.getAttribute('data-pr')||'0');
-  badge.innerHTML='Доступно: <b>'+av+'</b> шт.'+(pr>0?' · <span style="color:var(--amber)">'+pr.toFixed(2)+' ₾</span>':'');
+  badge.innerHTML='Доступно: <b>'+av+'</b> шт.'+(pr>0?' · <span style="color:var(--amber)">'+fmt(pr)+' ₾</span>':'');
   badge.className='item-badge '+(av===0?'no':av<=3?'low':'ok');
 }
 function buildStockOpts(){
   var s='<option value="">— выберите товар —</option>';
   stockItems.forEach(function(it){
     s+='<option value="'+esc(it.id)+'" data-name="'+esc(it.name)+'" data-av="'+it.available+'" data-pr="'+it.price+'" data-pct="'+(it.percent||0)+'">'+
-      esc(it.name)+' ('+it.available+' шт.)'+(it.price>0?' — '+it.price.toFixed(2)+' ₾':'')+
+      esc(it.name)+' ('+it.available+' шт.)'+(it.price>0?' — '+fmt(it.price)+' ₾':'')+
     '</option>';
   });
   if(!stockItems.length) s='<option value="">Загрузка…</option>';
@@ -1103,8 +1103,8 @@ function onArrGoodsChange(i){
   var opt=sel.options[sel.selectedIndex];
   if(!sel.value){info.textContent='';return;}
   var av=opt.getAttribute('data-av'),pr=parseFloat(opt.getAttribute('data-pr')||'0');
-  info.innerHTML='На складе: <b>'+av+'</b> шт.'+(pr>0?' · <span style="color:var(--amber)">'+pr.toFixed(2)+' ₾</span>':'');
-  var pi=document.getElementById('apr-'+i);if(pi&&pr>0)pi.placeholder=pr.toFixed(2);
+  info.innerHTML='На складе: <b>'+av+'</b> шт.'+(pr>0?' · <span style="color:var(--amber)">'+fmt(pr)+' ₾</span>':'');
+  var pi=document.getElementById('apr-'+i);if(pi&&pr>0)pi.placeholder=fmt(pr);
 }
 function removeAI(i){var el=document.getElementById('ai-'+i);if(el)el.remove();arrCount--;}
 
@@ -1206,7 +1206,7 @@ function loadDeposit() {
     .then(function(rows){
       var bal = rows && rows[0] ? Number(rows[0].balance) : 0;
       document.getElementById('deposit-balance').textContent =
-        bal.toFixed(2) + ' ₾';
+        fmt(bal) + ' ₾';
       document.getElementById('deposit-balance').style.color =
         bal >= 0 ? 'var(--green)' : 'var(--coral)';
     })
@@ -1236,7 +1236,7 @@ function loadMoneyList() {
             '</div>' +
           '</div>' +
           '<div style="font-size:17px;font-weight:700;color:' + (isPlus?'var(--green)':'var(--coral)') + '">' +
-            (isPlus?'+':'-') + Number(r.amount).toFixed(2) + ' ₾' +
+            (isPlus?'+':'-') + fmt(Number(r.amount)) + ' ₾' +
           '</div>' +
         '</div>';
       }).join('');
@@ -1282,6 +1282,7 @@ function submitMoney() {
     });
 }
 
+function fmt(n){var num=Number(n)||0;return Number.isInteger(num)?String(num):String(Math.round(num*100)/100);}
 function generateId(prefix){
   var d=new Date();
   var pad=function(n){return String(n).padStart(2,'0');};
