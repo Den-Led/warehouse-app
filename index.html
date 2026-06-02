@@ -165,9 +165,7 @@ textarea{resize:vertical;min-height:88px}
 
 /* ── КАРТОЧКА ЗАКАЗА ─────────────────────────────────────── */
 .op-card{background:var(--surf);border:1px solid var(--border);border-radius:var(--r);padding:14px 14px;margin-bottom:12px}
-.op-card-inner{display:grid;grid-template-columns:1fr 120px;gap:12px;align-items:stretch}
-.op-left{min-width:0;display:flex;flex-direction:column;justify-content:space-between}
-.op-right{display:flex;flex-direction:column;align-items:flex-start;justify-content:space-between;padding-left:12px;border-left:1px solid var(--border)}
+/* op-card-inner убран — карточка одноколоночная */
 .op-customer{font-size:18px;font-weight:700;margin-bottom:5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .op-goods-list{display:flex;flex-direction:column;gap:4px;margin-bottom:5px}
 .op-goods-row{display:grid;grid-template-columns:1fr auto auto;gap:6px;align-items:center}
@@ -188,8 +186,32 @@ textarea{resize:vertical;min-height:88px}
 .op-type-badge.trip{background:rgba(245,166,35,.12);color:var(--amber)}
 .op-type-badge.arrival{background:rgba(167,139,250,.12);color:var(--violet)}
 .op-toggls{display:flex;flex-direction:row;gap:12px;align-items:flex-start;width:100%;margin-bottom:10px}
-.mini-tog{display:flex;flex-direction:column;align-items:center;gap:4px}
-.mini-tog-label{font-size:11px;font-weight:700;color:var(--text3);letter-spacing:.4px;text-transform:uppercase}
+/* Эмодзи-тогглы в карточке заказа */
+.op-toggls{display:flex;flex-direction:row;gap:10px;align-items:flex-start;width:100%;margin-bottom:10px}
+.emoji-toggle-wrap{display:flex;flex-direction:column;align-items:center;gap:0}
+.emoji-toggle{position:relative;width:64px;height:34px;flex-shrink:0}
+.emoji-toggle input{opacity:0;width:0;height:0;position:absolute}
+.emoji-track{
+  position:absolute;inset:0;background:var(--border2);border-radius:17px;
+  cursor:pointer;transition:background .2s;display:flex;align-items:center;
+  justify-content:flex-start;padding:0 4px;gap:0;overflow:hidden;
+}
+.emoji-toggle input:checked + .emoji-track{background:var(--green)}
+.emoji-knob{
+  width:26px;height:26px;border-radius:50%;background:#fff;
+  display:flex;align-items:center;justify-content:center;
+  font-size:15px;line-height:1;flex-shrink:0;
+  transition:transform .2s;
+  position:relative;z-index:1;
+}
+.emoji-toggle input:checked + .emoji-track .emoji-knob{transform:translateX(30px)}
+.emoji-name{
+  position:absolute;right:6px;top:50%;transform:translateY(-50%);
+  font-size:11px;font-weight:800;color:#fff;letter-spacing:-.3px;
+  opacity:0;transition:opacity .15s;pointer-events:none;
+}
+.emoji-toggle input:checked + .emoji-track .emoji-name{opacity:1}
+/* mini-toggle оставляем для обратной совместимости */
 .mini-toggle{position:relative;width:50px;height:28px}
 .mini-toggle input{opacity:0;width:0;height:0}
 .mtr{position:absolute;inset:0;background:var(--border2);border-radius:14px;cursor:pointer;transition:background .2s}
@@ -758,48 +780,97 @@ function renderOrders(){
 }
 
 function renderOrderCard(d){
-  var isDone=d.status==='Завершён'||d.status==='Завершен';
-  var paid=d.payStatus==='Оплачен', deliv=d.delivery==='Да';
-  var total=d.items.reduce(function(s,it){return s+(it.qty*(it.price||0));},0);
-  var oid=esc(d.id);
-  var payName=paid&&d.payMethod?d.payMethod.replace('Оплатили ',''):'';
-  console.log('Card:', d.id, '| totalPercent:', d.totalPercent, '| type:', typeof d.totalPercent);
-  var itemsHtml=d.items.map(function(it){
-    var sum=it.qty*(it.price||0);
+  var isDone = d.status==='Завершён'||d.status==='Завершен';
+  var paid   = d.payStatus==='Оплачен';
+  var deliv  = d.delivery==='Да';
+  var total  = d.items.reduce(function(s,it){return s+(it.qty*(it.price||0));},0);
+  var oid    = esc(d.id);
+
+  // Имя для надписи на тоггле оплаты: «Оплатили Дену» → «Ден», «Оплатили Яне» → «Яна»
+  var payName = '';
+  if(paid && d.payMethod){
+    if(d.payMethod.indexOf('Дену') !== -1)      payName = 'Ден';
+    else if(d.payMethod.indexOf('Яне') !== -1)  payName = 'Яна';
+    else payName = d.payMethod.replace('Оплатили ','').slice(0,4);
+  }
+
+  // Список товаров — на всю ширину
+  var itemsHtml = d.items.map(function(it){
+    var sum = it.qty*(it.price||0);
     return '<div class="op-goods-row"><span class="op-goods-name">'+esc(it.name)+'</span>'+
       '<span class="op-goods-qty">'+it.qty+' шт.</span>'+
       '<span class="op-goods-sum">'+(sum>0?fmt(sum)+' ₾':'—')+'</span></div>';
   }).join('');
-  var rightHtml=
-    '<div class="op-toggls">'+
-      '<div class="mini-tog"><div class="mini-tog-label">Оплата</div>'+
-        '<label class="mini-toggle"><input type="checkbox" '+(paid?'checked':'')+
-        ' onchange="togglePay(this.dataset.oid,this)" data-oid="'+oid+'"><span class="mtr"></span></label>'+
-        '<div class="mini-tog-pay-method" id="pay-method-'+oid+'" style="'+(payName?'':'visibility:hidden')+'">'+esc(payName||'—')+'</div>'+
-      '</div>'+
-      '<div class="mini-tog"><div class="mini-tog-label">Доставка</div>'+
-        '<label class="mini-toggle"><input type="checkbox" '+(deliv?'checked':'')+
-        ' onchange="toggleDelivery(this.dataset.oid,this)" data-oid="'+oid+'"><span class="mtr"></span></label>'+
-        '<div class="mini-tog-val '+(deliv?'yes':'no')+'" id="del-val-'+oid+'">'+(deliv?'Доставлен':'Не дост.')+'</div>'+
-      '</div></div>'+
-    (isDone?'<div class="op-status-done">✓ Завершён</div>':
-      '<button class="btn-complete" id="bcmp-'+oid+'" onclick="askComplete(this.dataset.oid,this)" data-oid="'+oid+'">Завершить</button>');
 
-  return '<div class="op-card anim" id="card-'+oid+'"><div class="op-card-inner">'+
-    '<div class="op-left"><div>'+
-      '<div class="op-customer">'+esc(d.customer||'—')+'</div>'+
-      '<div class="op-goods-list">'+itemsHtml+'</div></div>'+
-      '<div><hr class="op-divider"><div class="op-bottom">'+
-        '<div style="display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap">'+
-          '<div><div class="op-total-label">Итого</div><div class="op-total-val">'+(total>0?fmt(total)+' ₾':'—')+'</div></div>'+
-          (d.totalPercent>0?'<div style="background:rgba(167,139,250,.12);border:1px solid rgba(167,139,250,.3);border-radius:8px;padding:4px 10px;text-align:center">'+
-            '<div style="font-size:15px;font-weight:700;color:var(--violet)">'+fmt(d.totalPercent)+' ₾</div>'+
-          '</div>':'')+
+  // Эмодзи-тоггл оплаты
+  var payToggle =
+    '<label class="emoji-toggle">'+
+      '<input type="checkbox" '+(paid?'checked':'')+
+      ' onchange="togglePay(this.dataset.oid,this)" data-oid="'+oid+'">'+
+      '<span class="emoji-track">'+
+        '<span class="emoji-knob">💸</span>'+
+        '<span class="emoji-name" id="pay-name-'+oid+'">'+(payName||'')+'</span>'+
+      '</span>'+
+    '</label>';
+
+  // Эмодзи-тоггл доставки
+  var delToggle =
+    '<label class="emoji-toggle" id="del-tog-'+oid+'">'+
+      '<input type="checkbox" '+(deliv?'checked':'')+
+      ' onchange="toggleDelivery(this.dataset.oid,this)" data-oid="'+oid+'">'+
+      '<span class="emoji-track">'+
+        '<span class="emoji-knob">🚚</span>'+
+      '</span>'+
+    '</label>';
+
+  var togglesHtml =
+    '<div class="op-toggls">'+
+      '<div class="emoji-toggle-wrap">'+payToggle+'</div>'+
+      '<div class="emoji-toggle-wrap">'+delToggle+'</div>'+
+    '</div>'+
+    (isDone
+      ? '<div class="op-status-done">✓ Завершён</div>'
+      : '<button class="btn-complete" id="bcmp-'+oid+'"'+
+        ' onclick="askComplete(this.dataset.oid,this)" data-oid="'+oid+'">Завершить</button>');
+
+  return (
+    '<div class="op-card anim" id="card-'+oid+'">'+
+
+      // ── Строка 1: имя заказчика + тогглы справа ──
+      '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:8px">'+
+        '<div class="op-customer" style="flex:1">'+esc(d.customer||'—')+'</div>'+
+        '<div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;flex-shrink:0">'+
+          togglesHtml+
         '</div>'+
-        '<div class="op-meta-row"><span class="op-type-inline order">Заказ</span>'+
-          '<span class="op-id">'+oid+'</span><span class="op-date">'+esc(d.date)+'</span></div>'+
-      '</div></div></div>'+
-    '<div class="op-right">'+rightHtml+'</div></div></div>';
+      '</div>'+
+
+      // ── Строка 2: товары на всю ширину ──
+      '<div class="op-goods-list">'+itemsHtml+'</div>'+
+
+      // ── Разделитель ──
+      '<hr class="op-divider">'+
+
+      // ── Строка 3: итого + мета ──
+      '<div class="op-bottom">'+
+        '<div style="display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap">'+
+          '<div><div class="op-total-label">Итого</div>'+
+            '<div class="op-total-val">'+(total>0?fmt(total)+' ₾':'—')+'</div>'+
+          '</div>'+
+          (d.totalPercent>0
+            ? '<div style="background:rgba(167,139,250,.12);border:1px solid rgba(167,139,250,.3);border-radius:8px;padding:4px 10px;text-align:center">'+
+                '<div style="font-size:15px;font-weight:700;color:var(--violet)">'+fmt(d.totalPercent)+' ₾</div>'+
+              '</div>'
+            : '')+
+        '</div>'+
+        '<div class="op-meta-row">'+
+          '<span class="op-type-inline order">Заказ</span>'+
+          '<span class="op-id">'+oid+'</span>'+
+          '<span class="op-date">'+esc(d.date)+'</span>'+
+        '</div>'+
+      '</div>'+
+
+    '</div>'
+  );
 }
 
 function renderTransferCard(d){
@@ -850,14 +921,22 @@ function confirmPayMethod(method){
   closePopup('pop-pay');
   if(!_pendingPayOrderId) return;
   updateOrderField(_pendingPayOrderId,'payStatus','Оплачен','payMethod',method);
-  var m=method.replace('Оплатили ','');
-  var pm=document.getElementById('pay-method-'+_pendingPayOrderId);
-  if(pm){pm.textContent=m;pm.style.visibility='visible';}
+  // Определяем короткое имя для тоггла
+  var shortName = '';
+  if(method.indexOf('Дену') !== -1)     shortName = 'Ден';
+  else if(method.indexOf('Яне') !== -1) shortName = 'Яна';
+  else shortName = method.replace('Оплатили ','').slice(0,4);
+  var pn = document.getElementById('pay-name-'+_pendingPayOrderId);
+  if(pn) pn.textContent = shortName;
   _pendingPayOrderId=null; _pendingPayToggle=null;
 }
 function cancelPayPop(){
   closePopup('pop-pay');
-  if(_pendingPayToggle) _pendingPayToggle.checked=false;
+  if(_pendingPayToggle) {
+    _pendingPayToggle.checked=false;
+    var pn=document.getElementById('pay-name-'+_pendingPayOrderId);
+    if(pn) pn.textContent='';
+  }
   _pendingPayOrderId=null; _pendingPayToggle=null;
 }
 function toggleDelivery(orderId,chk){
