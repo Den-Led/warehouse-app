@@ -812,7 +812,8 @@ function renderOrders(){
 }
 
 function renderOrderCard(d){
-  var isDone = d.status==='Завершён'||d.status==='Завершен';
+  var isDone     = d.status==='Завершён'||d.status==='Завершен';
+  var isReturned = d.status==='завершен-отмена';
   var paid   = d.payStatus==='Оплачен';
   var deliv  = d.delivery==='Да';
   var total  = d.items.reduce(function(s,it){return s+(it.qty*(it.price||0));},0);
