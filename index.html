@@ -942,9 +942,19 @@ function renderTransferCard(d){
 
 function completeTransfer(operationId, btn){
   if(btn){btn.disabled=true;btn.textContent='…';}
-  sbPatch('journal',
-    'operation_id=eq.'+encodeURIComponent(operationId)+'&type=eq.Перевод',
-    {transfer_status:'Выполнен'})
+  // Сначала получаем сумму перевода из journal
+  sbGet('journal','select=amount&operation_id=eq.'+encodeURIComponent(operationId)+'&type=eq.Перевод')
+    .then(function(rows){
+      var amount = rows && rows[0] ? Number(rows[0].amount)||0 : 0;
+      // Обновляем статус
+      return sbPatch('journal',
+        'operation_id=eq.'+encodeURIComponent(operationId)+'&type=eq.Перевод',
+        {transfer_status:'Выполнен'})
+        .then(function(){
+          // Сумма перевода → den_yane
+          if(amount > 0) return moneyAdd('den_yane', amount);
+        });
+    })
     .then(function(){
       toast('Перевод выполнен','ok');
       openOrders();
