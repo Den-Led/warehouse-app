@@ -771,7 +771,8 @@ function renderOrders(){
         comment:e.comment,status:e.status,items:[],totalPercent:0};
       groups[e.id].items.push({name:e.goods,qty:e.qty,price:e.price});
       groups[e.id].totalPercent += e.my_percent || 0;
-      if(e.status!=='Завершён') groups[e.id].status='Активен';
+      if(e.status!=='Завершён'&&e.status!=='завершен-отмена') groups[e.id].status='Активен';
+      if(e.status==='завершен-отмена') groups[e.id].status='завершен-отмена';
     } else singles.push(e);
   });
   var cards=[];
@@ -785,8 +786,8 @@ function renderOrders(){
     var km={order:'Заказ',transfer:'Перевод',trip:'Поездка',arrival:'Завоз'};
     cards=cards.filter(function(c){return km[c.kind]===typeFilter;});
   }
-  if(statusFilter==='active') cards=cards.filter(function(c){var s=c.data.status||'';return s!=='Завершён'&&s!=='Завершен';});
-  else if(statusFilter==='done') cards=cards.filter(function(c){var s=c.data.status||'';return s==='Завершён'||s==='Завершен';});
+  if(statusFilter==='active') cards=cards.filter(function(c){var s=c.data.status||'';return s!=='Завершён'&&s!=='Завершен'&&s!=='завершен-отмена';});
+  else if(statusFilter==='done') cards=cards.filter(function(c){var s=c.data.status||'';return s==='Завершён'||s==='Завершен'||s==='завершен-отмена';});
 
   document.getElementById('orders-count-label').textContent='Операций: '+cards.length;
   var container=document.getElementById('orders-list');
@@ -877,9 +878,11 @@ function renderOrderCard(d){
               '</div>'
             : '')+
         '</div>'+
-        (isDone
-          ? '<div class="op-status-done">✓ Завершён</div>'
-          : '<button class="btn-complete" id="bcmp-'+oid+'" onclick="askComplete(this.dataset.oid,this)" data-oid="'+oid+'">Завершить</button>')+
+        (isReturned
+          ? '<div class="op-status-done" style="color:var(--coral);background:rgba(255,107,107,.1);border-color:rgba(255,107,107,.3)">✕ Завершён</div>'
+          : isDone
+            ? '<div class="op-status-done">✓ Завершён</div>'
+            : '<button class="btn-complete" id="bcmp-'+oid+'" onclick="askComplete(this.dataset.oid,this)" data-oid="'+oid+'">Завершить</button>')+
       '</div>'+
 
     '</div>'
