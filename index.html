@@ -662,8 +662,11 @@ function navTo(screen) {
   if(nb) nb.classList.add('active');
   currentScreen=screen;
   window.scrollTo(0,0);
-  if(screen==='journal' && stockReady && orderCount===0) { /* вкладка добавится при go() */ }
-  if(screen==='journal' && !stockReady) loadStock();
+  if(screen==='journal') {
+    if(!stockReady) loadStock();
+    // Всегда открывать вкладку «Заказ»
+    setTimeout(function(){ go('order'); }, 50);
+  }
   if(screen==='orders') openOrders();
   if(screen==='money')  openMoney();
   // Кнопка "Назад" в Telegram
@@ -677,7 +680,10 @@ function navTo(screen) {
 
 try {
   if(tg && tg.BackButton) {
-    tg.BackButton.onClick(function(){ navTo('journal'); });
+    tg.BackButton.onClick(function(){ // Стартуем на «Заказах» с фильтром Заказ + Акт
+navTo('orders');
+setTypeFilter('Заказ');
+setStatusFilter('active'); });
   }
 } catch(e) {}
 
@@ -1519,32 +1525,108 @@ function loadDeposit() {
 function loadMoneyList() {
   var list = document.getElementById('money-list');
   list.innerHTML = '<div style="color:var(--text3);font-size:14px;padding:10px 0">Загрузка…</div>';
-  sbGet('money', 'order=created_at.desc&limit=5')
+
+  // Берём последние записи из journal кроме Завоза
+  sbGet('journal',
+    'select=operation_id,type,date,customer,goods,qty,price_per_unit,my_percent,pay_status,pay_method,amount,transfer_status,expeditor,status,delivery' +
+    '&type=neq.Завоз&order=date.desc&limit=50')
     .then(function(rows){
-      if(!rows || !rows.length){
-        list.innerHTML = '<div style="color:var(--text3);font-size:14px;padding:10px 0">Операций пока нет</div>';
+      if(!rows||!rows.length){
+        list.innerHTML='<div style="color:var(--text3);font-size:14px;padding:10px 0">Операций пока нет</div>';
         return;
       }
-      list.innerHTML = rows.map(function(r){
-        var isPlus = MONEY_PLUS.indexOf(r.type) !== -1;
-        var label  = MONEY_TYPES[r.type] || r.type;
-        var date   = r.created_at
-          ? new Date(r.created_at).toLocaleString('ru-RU',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})
+
+      // Группируем по operation_id
+      var groups={}, order=[];
+      rows.forEach(function(r){
+        var oid = r.operation_id||('_'+r.type);
+        if(!groups[oid]){
+          groups[oid]={
+            oid:oid, type:r.type, date:r.date,
+            customer:r.customer, payMethod:r.pay_method,
+            payStatus:r.pay_status, transferStatus:r.transfer_status,
+            amount:Number(r.amount)||0, expeditor:Number(r.expeditor)||0,
+            status:r.status, items:[], totalMargin:0, totalSum:0
+          };
+          order.push(oid);
+        }
+        var g=groups[oid];
+        if(r.goods){
+          g.items.push({name:r.goods, qty:Number(r.qty)||0, price:Number(r.price_per_unit)||0});
+          g.totalSum    += (Number(r.qty)||0)*(Number(r.price_per_unit)||0);
+          g.totalMargin += Number(r.my_percent)||0;
+        }
+      });
+
+      // Берём первые 5 уникальных операций
+      var shown = order.slice(0,5);
+
+      list.innerHTML = shown.map(function(oid){
+        var g = groups[oid];
+        var date = g.date
+          ? new Date(g.date).toLocaleString('ru-RU',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})
           : '';
-        return '<div style="display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid var(--border)">' +
-          '<div>' +
-            '<div style="font-size:15px;font-weight:600">' + esc(label) + '</div>' +
-            '<div style="font-size:12px;color:var(--text3);margin-top:2px">' + date +
-              (r.comment ? ' · ' + esc(r.comment) : '') +
-            '</div>' +
-          '</div>' +
-          '<div style="font-size:17px;font-weight:700;color:' + (isPlus?'var(--green)':'var(--coral)') + '">' +
-            (isPlus?'+':'-') + fmt(Number(r.amount)) + ' ₾' +
-          '</div>' +
-        '</div>';
+
+        // Тип
+        var typeLabel = g.type==='Заказ'   ? '📦 Заказ'
+                      : g.type==='Перевод' ? '💸 Перевод'
+                      : g.type==='Поездка' ? '🚚 Поездка' : g.type;
+
+        // Движение денег
+        var moneyFlow = '';
+        if(g.type==='Заказ'){
+          var col = g.payMethod&&g.payMethod.indexOf('Яне')!==-1 ? 'client_yane'
+                  : g.payMethod&&g.payMethod.indexOf('Дену')!==-1? 'client_den' : null;
+          if(col && g.totalSum>0)
+            moneyFlow += '<span style="color:var(--green)">+'+fmt(g.totalSum)+'₾ → '+(col==='client_yane'?'Яне':'Дену')+'</span>';
+          if(g.totalMargin>0)
+            moneyFlow += (moneyFlow?' · ':'')+'<span style="color:var(--violet)">+'+fmt(g.totalMargin)+'₾ → ЗП</span>';
+        } else if(g.type==='Перевод'&&g.transferStatus==='Выполнен'&&g.amount>0){
+          moneyFlow = '<span style="color:var(--amber)">+'+fmt(g.amount)+'₾ → Ден→Яне</span>';
+        } else if(g.type==='Поездка'){
+          var tripTotal=(g.amount||0)+(g.expeditor||0);
+          if(tripTotal>0) moneyFlow='<span style="color:var(--coral)">-'+fmt(tripTotal)+'₾ → ЗП</span>';
+        }
+
+        // Сборка строки
+        var lines = [];
+        // Строка 1: тип + дата
+        lines.push('<div style="display:flex;justify-content:space-between;align-items:center">'+
+          '<span style="font-size:14px;font-weight:700">'+typeLabel+'</span>'+
+          '<span style="font-size:11px;color:var(--text3)">'+date+'</span>'+
+        '</div>');
+
+        // Строка 2: клиент (если есть)
+        if(g.customer)
+          lines.push('<div style="font-size:13px;color:var(--text2);margin-top:2px">'+esc(g.customer)+'</div>');
+
+        // Строка 3: товары (если есть)
+        if(g.items.length)
+          lines.push('<div style="font-size:12px;color:var(--text2);margin-top:2px">'+
+            g.items.map(function(it){ return esc(it.name)+' ×'+it.qty; }).join(', ')+
+          '</div>');
+
+        // Строка 4: суммы
+        var sums = [];
+        if(g.type==='Заказ'&&g.totalSum>0) sums.push('<span style="color:var(--amber);font-weight:700">'+fmt(g.totalSum)+' ₾</span>');
+        if(g.totalMargin>0) sums.push('<span style="color:var(--violet);font-size:12px">маржа: '+fmt(g.totalMargin)+' ₾</span>');
+        if(g.payMethod) sums.push('<span style="font-size:12px;color:var(--text3)">'+esc(g.payMethod)+'</span>');
+        if(g.type==='Перевод'&&g.amount>0) sums.push('<span style="color:var(--amber);font-weight:700">'+fmt(g.amount)+' ₾</span>');
+        if(g.type==='Поездка'){
+          var tt=(g.amount||0)+(g.expeditor||0);
+          if(tt>0) sums.push('<span style="color:var(--amber);font-weight:700">'+fmt(tt)+' ₾</span>');
+        }
+        if(sums.length)
+          lines.push('<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:4px">'+sums.join('')+'</div>');
+
+        // Строка 5: движение денег
+        if(moneyFlow)
+          lines.push('<div style="font-size:12px;margin-top:4px">'+moneyFlow+'</div>');
+
+        return '<div style="padding:12px 0;border-bottom:1px solid var(--border)">'+lines.join('')+'</div>';
       }).join('');
     })
-    .catch(function(){ list.innerHTML = '<div style="color:var(--coral);font-size:14px">Ошибка загрузки</div>'; });
+    .catch(function(){ list.innerHTML='<div style="color:var(--coral);font-size:14px">Ошибка загрузки</div>'; });
 }
 
 function submitMoney() {
