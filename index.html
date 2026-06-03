@@ -938,12 +938,14 @@ function renderOrderCard(d){
   return (
     '<div class="op-card anim" id="card-'+oid+'">'+
 
-      // ── Строка 1: имя заказчика + тогглы справа ──
+      // ── Строка 1: имя заказчика + tg_username + тогглы справа ──
       '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:3px">'+
-        '<div class="op-customer" style="flex:1;'+(d.tgUsername?'cursor:pointer':'')+'"'+
+        '<div style="flex:1;min-width:0;'+(d.tgUsername?'cursor:pointer':'')+'"'+
           (d.tgUsername?' onclick="openTg(this.dataset.tg)" data-tg="'+esc(d.tgUsername)+'"':'')+'>'+
-          esc(d.customer||'—')+
-          (d.tgUsername?' <span style="font-size:11px;color:var(--accent);font-weight:600">@'+esc(d.tgUsername)+'</span>':'')+
+          '<div class="op-customer" style="margin-bottom:0">'+esc(d.customer||'—')+'</div>'+
+          (d.tgUsername
+            ? '<div style="font-size:12px;color:var(--accent);font-weight:600;margin-top:1px">@'+esc(d.tgUsername)+'</div>'
+            : '')+
         '</div>'+
         '<div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;flex-shrink:0">'+
           togglesHtml+
