@@ -1348,14 +1348,17 @@ function resetOrder(){
 // ФОРМА ПЕРЕВОДА / ПОЕЗДКИ / ЗАВОЗА
 // ══════════════════════════════════════════════════════════════
 function submitTransfer(){
-  var amt=parseFloat(document.getElementById('tr-amount').value);
+  var amt     = parseFloat(document.getElementById('tr-amount').value);
+  var isDone  = document.getElementById('tr-done').checked;
   if(!amt||amt<=0){toast('Введите сумму','err');return;}
   sbPost('journal',[{
     type:'Перевод', operation_id:generateId('TRN'),
     amount:amt,
-    transfer_status:document.getElementById('tr-done').checked?'Выполнен':'Нет',
+    transfer_status:isDone?'Выполнен':'Нет',
     status:'Завершён'
   }]).then(function(){
+    // Если сразу выполнен — прибавить сумму к den_yane
+    if(isDone && amt > 0) moneyAdd('den_yane', amt);
     toast('Перевод сохранён','ok');
     document.getElementById('tr-amount').value='';
     document.getElementById('tr-done').checked=false;
