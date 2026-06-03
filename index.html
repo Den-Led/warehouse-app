@@ -1750,7 +1750,16 @@ function saveClientIfNew(name, tgUsername) {
 function openTg(username) {
   if(!username) return;
   var url = 'https://t.me/' + username.replace(/^@/,'');
-  try { if(tg && tg.openLink) { tg.openLink(url); return; } } catch(e){}
+  try {
+    if(tg && tg.openTelegramLink) {
+      tg.openTelegramLink(url);
+      return;
+    }
+    if(tg && tg.openLink) {
+      tg.openLink(url);
+      return;
+    }
+  } catch(e){}
   window.open(url, '_blank');
 }
 
