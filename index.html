@@ -255,6 +255,9 @@ textarea{resize:vertical;min-height:88px}
 .anim{animation:fadeIn .2s ease}
 hr.div{border:none;border-top:1px solid var(--border);margin:14px 0}
 .stock-load-msg{display:flex;align-items:center;gap:10px;padding:10px 0;color:var(--text2);font-size:15px}
+.suggest-item{padding:12px 16px;font-size:15px;font-weight:500;color:var(--text);cursor:pointer;border-bottom:1px solid var(--border)}
+.suggest-item:last-child{border-bottom:none}
+.suggest-item:active{background:rgba(79,126,255,.15)}
 </style>
 </head>
 <body>
@@ -313,9 +316,26 @@ hr.div{border:none;border-top:1px solid var(--border);margin:14px 0}
     <div class="sec" id="s-order">
       <div class="card">
         <div class="ct">Позиции заказа</div>
-        <div class="field" style="margin-bottom:16px">
+        <div class="field" style="margin-bottom:12px">
           <label>Имя заказчика</label>
-          <input type="text" id="order-customer" placeholder="Введите имя…">
+          <div style="position:relative">
+            <input type="text" id="order-customer" placeholder="Введите имя…"
+              oninput="onCustomerInput()" onblur="hideCustomerSuggest()" autocomplete="off">
+            <div id="customer-suggest" style="
+              display:none;position:absolute;top:100%;left:0;right:0;z-index:200;
+              background:var(--surf2);border:1.5px solid var(--accent);
+              border-top:none;border-radius:0 0 var(--rs) var(--rs);
+              max-height:200px;overflow-y:auto;
+            "></div>
+          </div>
+        </div>
+        <div class="field" style="margin-bottom:16px">
+          <label>Telegram</label>
+          <div style="position:relative;display:flex;align-items:center">
+            <span style="position:absolute;left:14px;color:var(--text3);font-size:17px;pointer-events:none">@</span>
+            <input type="text" id="order-tg" placeholder="username" autocomplete="off"
+              style="padding-left:30px">
+          </div>
         </div>
         <div class="stock-load-msg" id="stock-loading" style="display:none">
           <div class="spin" style="width:16px;height:16px;border-width:2px;border-color:var(--border2);border-top-color:var(--accent)"></div>
@@ -504,6 +524,24 @@ hr.div{border:none;border-top:1px solid var(--border);margin:14px 0}
 </nav>
 
 <!-- ══ ДЕНЬГИ ════════════════════════════════════════════════ -->
+<!-- ══ ПОПАП: редактирование комментария ════════════════════ -->
+<div class="popup-overlay hidden" id="pop-comment">
+  <div class="popup">
+    <div class="popup-handle"></div>
+    <div class="popup-title">Комментарий к заказу</div>
+    <div class="popup-btns" style="margin-bottom:0">
+      <textarea id="comment-edit-text"
+        style="width:100%;background:var(--surf2);border:1.5px solid var(--border);
+               border-radius:var(--rs);color:var(--text);font-family:'Manrope',sans-serif;
+               font-size:16px;padding:14px;outline:none;resize:vertical;min-height:100px;
+               margin-bottom:12px"
+        placeholder="Введите комментарий…"></textarea>
+      <button class="popup-btn success" onclick="saveComment()">Сохранить</button>
+      <button class="popup-btn cancel"  onclick="closePopup('pop-comment')">Отмена</button>
+    </div>
+  </div>
+</div>
+
 <!-- ══ ПОПАПЫ ════════════════════════════════════════════════ -->
 <div class="popup-overlay hidden" id="pop-pay">
   <div class="popup">
@@ -704,8 +742,11 @@ function go(tab){
   currentTab=tab;
   document.getElementById('t-'+tab).classList.add(tabCls[tab]);
   document.getElementById('s-'+tab).classList.add('vis');
-  if(tab==='order'   && orderCount===0 && stockReady) addOrderItem();
-  if(tab==='arrival' && arrCount===0   && stockReady) addArrItem(false);
+  if(tab==='order'){
+    if(orderCount===0 && stockReady) addOrderItem();
+    if(!customerNames.length) loadCustomerNames();
+  }
+  if(tab==='arrival' && arrCount===0 && stockReady) addArrItem(false);
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -840,7 +881,8 @@ function renderOrderCard(d){
   var paid   = d.payStatus==='Оплачен';
   var deliv  = d.delivery==='Да';
   var total  = d.items.reduce(function(s,it){return s+(it.qty*(it.price||0));},0);
-  var oid    = esc(d.id);
+  var oid        = esc(d.id);
+  d.tgUsername   = d.tg_username || '';
 
   // Имя для надписи на тоггле оплаты: «Оплатили Дену» → «Ден», «Оплатили Яне» → «Яна»
   var payName = '';
@@ -891,14 +933,23 @@ function renderOrderCard(d){
 
       // ── Строка 1: имя заказчика + тогглы справа ──
       '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:3px">'+
-        '<div class="op-customer" style="flex:1">'+esc(d.customer||'—')+'</div>'+
+        '<div class="op-customer" style="flex:1;'+(d.tgUsername?'cursor:pointer':'')+'"'+
+          (d.tgUsername?' onclick="openTg(this.dataset.tg)" data-tg="'+esc(d.tgUsername)+'"':'')+'>'+
+          esc(d.customer||'—')+
+          (d.tgUsername?' <span style="font-size:11px;color:var(--accent);font-weight:600">@'+esc(d.tgUsername)+'</span>':'')+
+        '</div>'+
         '<div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;flex-shrink:0">'+
           togglesHtml+
         '</div>'+
       '</div>'+
 
-      // ── Строка 2: товары на всю ширину ──
-      '<div class="op-goods-list">'+itemsHtml+'</div>'+
+      // ── Строка 2: товары (кликабельны) + комментарий ──
+      '<div class="op-goods-list" style="cursor:pointer" onclick="openCommentEdit(this.dataset.oid)" data-oid="'+oid+'">'+
+        itemsHtml+
+        (d.comment
+          ? '<div style="font-size:12px;color:var(--text2);margin-top:4px;font-style:italic">'+esc(d.comment)+'</div>'
+          : '<div style="font-size:11px;color:var(--text3);margin-top:3px">+ комментарий</div>')+
+      '</div>'+
 
       // ── Разделитель ──
       '<hr class="op-divider" style="margin:5px 0">'+
@@ -1281,7 +1332,8 @@ function submitOrder(){
     items.push({goodsId:sg.value,goodsName:opt.getAttribute('data-name')||opt.text,qty:q,price:parseFloat(opt.getAttribute('data-pr')||'0')});
   }
   if(err||!items.length){if(!err)toast('Добавьте хотя бы один товар','err');return;}
-  var customer=document.getElementById('order-customer').value.trim();
+  var customer   = document.getElementById('order-customer').value.trim();
+  var tgUsername = document.getElementById('order-tg').value.trim().replace(/^@/,'');
   if(!customer){toast('Введите имя заказчика','err');return;}
   var payStatus=document.getElementById('pay-chk').checked?'Оплачен':'Не оплачен';
   if(payStatus==='Оплачен'&&!payMethod){toast('Выберите способ оплаты','err');return;}
@@ -1325,7 +1377,7 @@ function submitOrder(){
         var myPercent = item.qty * percent;
         return {
           type:'Заказ', operation_id:orderId,
-          customer:customer, goods:item.goodsName, goods_id:item.goodsId,
+          customer:customer, tg_username:tgUsername||'', goods:item.goodsName, goods_id:item.goodsId,
           qty:item.qty, price_per_unit:item.price||0,
           pay_status:payStatus, pay_method:payMethod,
           delivery:delivery, comment:comment, status:'Активен',
@@ -1334,6 +1386,25 @@ function submitOrder(){
       });
       return sbPost('journal', rows);
     }).then(function(){
+      // Если клиент новый — добавить в таблицу clients
+      if(customer) {
+        var known = customerNames.find(function(cl){
+          return cl.name.toLowerCase() === customer.toLowerCase();
+        });
+        if(!known) {
+          // Новый клиент — сохраняем
+          var newClient = {name: customer};
+          if(tgUsername) newClient.tg_username = tgUsername;
+          sbPost('clients', [newClient])
+            .then(function(){ loadCustomerNames(); })
+            .catch(function(){});
+        } else if(tgUsername && !known.tg_username) {
+          // Клиент есть, но username не был — обновляем
+          sbPatch('clients', 'name=eq.'+encodeURIComponent(customer), {tg_username: tgUsername})
+            .then(function(){ loadCustomerNames(); })
+            .catch(function(){});
+        }
+      }
       busy('btn-order',false);
       toast('Заказ сохранён\n'+orderId,'ok');
       resetOrder(); loadStock();
@@ -1345,7 +1416,9 @@ function resetOrder(){
   document.getElementById('pay-chk').checked=false;document.getElementById('pay-method').style.display='none';
   document.querySelectorAll('#pay-pills .pill').forEach(function(p){p.classList.remove('sel');});
   document.getElementById('delivery').checked=false;
-  document.getElementById('order-customer').value='';document.getElementById('order-note').value='';
+  document.getElementById('order-customer').value='';
+  document.getElementById('order-tg').value='';
+  document.getElementById('order-note').value='';
   document.getElementById('btn-add-o').disabled=false;
   if(stockReady) addOrderItem();
 }
@@ -1516,12 +1589,95 @@ function openMoney() {
   loadMoneyList();
 }
 
+// ══════════════════════════════════════════════════════════════
+// АВТОДОПОЛНЕНИЕ ИМЕНИ ЗАКАЗЧИКА
+// ══════════════════════════════════════════════════════════════
+var customerNames = [];
+
+function loadCustomerNames() {
+  sbGet('journal', 'select=customer&type=eq.Заказ&customer=not.is.null&customer=neq.')
+    .then(function(rows){
+      var seen = {}, names = [];
+      (rows||[]).forEach(function(r){
+        var n = (r.customer||'').trim();
+        if(n && !seen[n.toLowerCase()]){ seen[n.toLowerCase()]=true; names.push(n); }
+      });
+      customerNames = names.sort(function(a,b){ return a.localeCompare(b,'ru'); });
+    }).catch(function(){});
+}
+
+function onCustomerInput() {
+  var val = document.getElementById('order-customer').value.trim().toLowerCase();
+  var box = document.getElementById('customer-suggest');
+  if(!val || !customerNames.length){ box.style.display='none'; return; }
+  var matches = customerNames.filter(function(n){ return n.toLowerCase().indexOf(val)===0; });
+  if(!matches.length){ box.style.display='none'; return; }
+  box.innerHTML = matches.slice(0,6).map(function(n){
+    return '<div class="suggest-item" onmousedown="pickCustomer(this.dataset.n)" data-n="'+esc(n)+'">'+esc(n)+'</div>';
+  }).join('');
+  box.style.display = 'block';
+}
+
+function pickCustomer(name) {
+  document.getElementById('order-customer').value = name;
+  document.getElementById('customer-suggest').style.display = 'none';
+}
+
+function hideCustomerSuggest() {
+  setTimeout(function(){
+    var box = document.getElementById('customer-suggest');
+    if(box) box.style.display = 'none';
+  }, 150);
+}
+
 function toggleMoneyForm() {
   var body  = document.getElementById('money-form-body');
   var arrow = document.getElementById('money-form-arrow');
   var open  = body.style.display === 'none';
   body.style.display  = open ? 'block' : 'none';
   arrow.style.transform = open ? 'rotate(90deg)' : 'rotate(0deg)';
+}
+
+// ══════════════════════════════════════════════════════════════
+// РЕДАКТИРОВАНИЕ КОММЕНТАРИЯ ЗАКАЗА
+// ══════════════════════════════════════════════════════════════
+var _pendingCommentOrderId = null;
+
+function openCommentEdit(orderId) {
+  _pendingCommentOrderId = orderId;
+  // Найти текущий комментарий из allEntries
+  var group = null;
+  Object.keys(allEntries.reduce ? {} : {}).forEach(function(){});
+  // Ищем в DOM — берём текст из italic div
+  var card = document.getElementById('card-'+orderId);
+  var commentEl = card ? card.querySelector('div[style*="italic"]') : null;
+  var current = commentEl ? commentEl.textContent : '';
+  document.getElementById('comment-edit-text').value = current;
+  document.getElementById('pop-comment').classList.remove('hidden');
+}
+
+function saveComment() {
+  if(!_pendingCommentOrderId) return;
+  var newComment = document.getElementById('comment-edit-text').value.trim();
+  sbPatch('journal',
+    'operation_id=eq.'+encodeURIComponent(_pendingCommentOrderId)+'&type=eq.Заказ',
+    {comment: newComment})
+    .then(function(){
+      closePopup('pop-comment');
+      toast('Комментарий сохранён','ok');
+      _pendingCommentOrderId = null;
+      openOrders(); // обновить карточки
+    })
+    .catch(function(){
+      toast('Ошибка сохранения','err');
+    });
+}
+
+function openTg(username) {
+  if(!username) return;
+  var url = 'https://t.me/' + username.replace(/^@/,'');
+  try { if(tg && tg.openLink) { tg.openLink(url); return; } } catch(e){}
+  window.open(url, '_blank');
 }
 
 function loadDeposit() {
