@@ -812,7 +812,8 @@ function openOrders(){
           expeditor:      Number(r.expeditor) || 0,
           comment:        r.comment     || '',
           status:         r.status      || '',
-          my_percent:     Number(r.my_percent) || 0
+          my_percent:     Number(r.my_percent) || 0,
+          tg_username:    r.tg_username  || ''
         };
       });
       renderOrders();
@@ -827,6 +828,7 @@ function renderOrders(){
       if(!groups[e.id]){
         // Статус берём один раз из первой строки — все строки заказа имеют одинаковый статус
         groups[e.id]={id:e.id,date:e.date,customer:e.customer,
+          tg_username:e.tg_username||'',
           payStatus:e.payStatus,payMethod:e.payMethod,delivery:e.delivery,
           comment:e.comment,status:e.status,items:[],totalPercent:0};
       }
