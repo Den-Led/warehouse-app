@@ -298,7 +298,7 @@ hr.div{border:none;border-top:1px solid var(--border);margin:14px 0}
 <div class="screen" id="sc-journal">
   <div class="page-hd">
     <div>
-      <div class="page-hd-title">Журнал</div>
+      <div class="page-hd-title">New</div>
     </div>
     <button class="icon-btn" id="btn-refresh-stock" onclick="reloadStock()" title="Обновить склад">↻</button>
   </div>
@@ -436,14 +436,6 @@ hr.div{border:none;border-top:1px solid var(--border);margin:14px 0}
 </div>
 
 <!-- ══ НИЖНЯЯ НАВИГАЦИЯ ══════════════════════════════════════ -->
-<nav class="bottom-nav">
-  <button class="nav-btn active" id="nav-home"    onclick="navTo('home')">    <span class="ni">🏠</span>Главная</button>
-  <button class="nav-btn"        id="nav-journal"  onclick="navTo('journal')"><span class="ni">📋</span>Журнал</button>
-  <button class="nav-btn"        id="nav-orders"   onclick="navTo('orders')"> <span class="ni">📊</span>Заказы</button>
-  <button class="nav-btn"        id="nav-money"    onclick="navTo('money')">  <span class="ni">💰</span>Деньги</button>
-</nav>
-
-<!-- ══ ДЕНЬГИ ════════════════════════════════════════════════ -->
 <div class="screen" id="sc-money">
   <div class="page-hd">
     <div>
@@ -497,6 +489,13 @@ hr.div{border:none;border-top:1px solid var(--border);margin:14px 0}
   </div>
 </div>
 
+<nav class="bottom-nav">
+  <button class="nav-btn active" id="nav-journal" onclick="navTo('journal')"><span class="ni">🆕</span>New</button>
+  <button class="nav-btn"        id="nav-orders"  onclick="navTo('orders')" ><span class="ni">📊</span>Заказы</button>
+  <button class="nav-btn"        id="nav-money"   onclick="navTo('money')"  ><span class="ni">💰</span>Деньги</button>
+</nav>
+
+<!-- ══ ДЕНЬГИ ════════════════════════════════════════════════ -->
 <!-- ══ ПОПАПЫ ════════════════════════════════════════════════ -->
 <div class="popup-overlay hidden" id="pop-pay">
   <div class="popup">
@@ -678,7 +677,7 @@ function navTo(screen) {
 
 try {
   if(tg && tg.BackButton) {
-    tg.BackButton.onClick(function(){ navTo('home'); });
+    tg.BackButton.onClick(function(){ navTo('journal'); });
   }
 } catch(e) {}
 
@@ -1507,11 +1506,10 @@ function openMoney() {
 }
 
 function loadDeposit() {
-  sbGet('deposit', 'id=eq.1')
+  sbGet('money', 'select=deposit&id=eq.1')
     .then(function(rows){
-      var bal = rows && rows[0] ? Number(rows[0].balance) : 0;
-      document.getElementById('deposit-balance').textContent =
-        fmt(bal) + ' ₾';
+      var bal = rows && rows[0] ? Number(rows[0].deposit) : 0;
+      document.getElementById('deposit-balance').textContent = fmt(bal) + ' ₾';
       document.getElementById('deposit-balance').style.color =
         bal >= 0 ? 'var(--green)' : 'var(--coral)';
     })
