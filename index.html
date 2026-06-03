@@ -1621,9 +1621,8 @@ function onTgInput() {
 
 function pickTg(tg, name) {
   document.getElementById('order-tg').value = tg;
-  // Если поле имени пустое — подставить имя клиента
-  var nameField = document.getElementById('order-customer');
-  if(nameField && !nameField.value.trim() && name) nameField.value = name;
+  // Всегда подставлять имя клиента
+  if(name) document.getElementById('order-customer').value = name;
   document.getElementById('tg-suggest').style.display = 'none';
 }
 
@@ -1638,16 +1637,27 @@ function onCustomerInput() {
   var val = document.getElementById('order-customer').value.trim().toLowerCase();
   var box = document.getElementById('customer-suggest');
   if(!val || !customerNames.length){ box.style.display='none'; return; }
-  var matches = customerNames.filter(function(n){ return n.toLowerCase().indexOf(val)===0; });
+  var matches = customerNames.filter(function(cl){
+    var name = typeof cl === 'object' ? cl.name : cl;
+    return name && name.toLowerCase().indexOf(val) === 0;
+  });
   if(!matches.length){ box.style.display='none'; return; }
-  box.innerHTML = matches.slice(0,6).map(function(n){
-    return '<div class="suggest-item" onmousedown="pickCustomer(this.dataset.n)" data-n="'+esc(n)+'">'+esc(n)+'</div>';
+  box.innerHTML = matches.slice(0,6).map(function(cl){
+    var name = typeof cl === 'object' ? cl.name : cl;
+    var tg   = typeof cl === 'object' ? (cl.tg_username||'') : '';
+    return '<div class="suggest-item" onmousedown="pickCustomer(this.dataset.n,this.dataset.tg)"'+
+      ' data-n="'+esc(name)+'" data-tg="'+esc(tg)+'">'+
+      esc(name)+
+      (tg ? ' <span style="font-size:12px;color:var(--text3)">@'+esc(tg)+'</span>' : '')+
+    '</div>';
   }).join('');
   box.style.display = 'block';
 }
 
-function pickCustomer(name) {
+function pickCustomer(name, tg) {
   document.getElementById('order-customer').value = name;
+  // Подставить tg_username если есть
+  if(tg) document.getElementById('order-tg').value = tg;
   document.getElementById('customer-suggest').style.display = 'none';
 }
 
