@@ -454,28 +454,36 @@ hr.div{border:none;border-top:1px solid var(--border);margin:14px 0}
     </div>
 
     <!-- Новая операция -->
-    <div class="card">
-      <div class="ct">Новая операция</div>
-      <div class="field">
-        <label>Тип операции</label>
-        <select id="money-type">
-          <option value="">— выберите —</option>
-          <option value="plus_deposit">➕ Плюс депозит</option>
-          <option value="client_yane">👤 Клиент → Яне</option>
-          <option value="client_den">👤 Клиент → Дену</option>
-          <option value="den_yane">🔄 Ден → Яне</option>
-          <option value="zp">💼 ЗП</option>
-        </select>
+    <div class="card" style="padding:0;overflow:hidden">
+      <!-- Заголовок-кнопка — нажать чтобы раскрыть -->
+      <div onclick="toggleMoneyForm()"
+        style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px;cursor:pointer;user-select:none">
+        <span style="font-size:11px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--text3)">Новая операция</span>
+        <span id="money-form-arrow" style="font-size:18px;color:var(--text3);transition:transform .2s">›</span>
       </div>
-      <div class="field">
-        <label>Сумма (₾)</label>
-        <input type="number" id="money-amount" placeholder="0" min="0" step="0.01">
+      <!-- Тело формы — скрыто по умолчанию -->
+      <div id="money-form-body" style="display:none;padding:0 16px 16px">
+        <div class="field">
+          <label>Тип операции</label>
+          <select id="money-type">
+            <option value="">— выберите —</option>
+            <option value="plus_deposit">➕ Плюс депозит</option>
+            <option value="client_yane">👤 Клиент → Яне</option>
+            <option value="client_den">👤 Клиент → Дену</option>
+            <option value="den_yane">🔄 Ден → Яне</option>
+            <option value="zp">💼 ЗП</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Сумма (₾)</label>
+          <input type="number" id="money-amount" placeholder="0" min="0" step="0.01">
+        </div>
+        <div class="field">
+          <label>Комментарий</label>
+          <input type="text" id="money-comment" placeholder="Необязательно…">
+        </div>
+        <button class="btn-sub amber" id="btn-money" onclick="submitMoney()">Сохранить</button>
       </div>
-      <div class="field">
-        <label>Комментарий</label>
-        <input type="text" id="money-comment" placeholder="Необязательно…">
-      </div>
-      <button class="btn-sub amber" id="btn-money" onclick="submitMoney()">Сохранить</button>
     </div>
 
     <!-- Последние операции -->
@@ -680,10 +688,7 @@ function navTo(screen) {
 
 try {
   if(tg && tg.BackButton) {
-    tg.BackButton.onClick(function(){ // Стартуем на «Заказах» с фильтром Заказ + Акт
-navTo('orders');
-setTypeFilter('Заказ');
-setStatusFilter('active'); });
+    tg.BackButton.onClick(function(){ navTo('journal'); });
   }
 } catch(e) {}
 
@@ -1511,6 +1516,14 @@ function openMoney() {
   loadMoneyList();
 }
 
+function toggleMoneyForm() {
+  var body  = document.getElementById('money-form-body');
+  var arrow = document.getElementById('money-form-arrow');
+  var open  = body.style.display === 'none';
+  body.style.display  = open ? 'block' : 'none';
+  arrow.style.transform = open ? 'rotate(90deg)' : 'rotate(0deg)';
+}
+
 function loadDeposit() {
   sbGet('money', 'select=deposit&id=eq.1')
     .then(function(rows){
@@ -1688,6 +1701,10 @@ function toast(msg,cls){
 function esc(s){return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 
 document.querySelectorAll('.btn-sub').forEach(function(b){b.setAttribute('data-lbl',b.textContent.trim());});
+// Стартовый экран: Заказы + фильтр Заказ + Акт
+navTo('orders');
+setTypeFilter('Заказ');
+setStatusFilter('active');
 </script>
 </body>
 </html>
