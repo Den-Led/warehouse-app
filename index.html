@@ -799,19 +799,15 @@ function renderOrders(){
   }
   if(statusFilter==='active'){
     cards=cards.filter(function(card){
-      if(card.kind==='transfer'){
-        // Для переводов: «Акт» = Ожидает (не Выполнен)
-        return card.data.transferStatus !== 'Выполнен';
-      }
+      if(card.kind==='trip'||card.kind==='arrival') return true; // поездки и завозы — без фильтра по статусу
+      if(card.kind==='transfer') return card.data.transferStatus !== 'Выполнен';
       var s=card.data.status||'';
       return s!=='Завершён'&&s!=='Завершен'&&s!=='завершен-отмена';
     });
   } else if(statusFilter==='done'){
     cards=cards.filter(function(card){
-      if(card.kind==='transfer'){
-        // Для переводов: «Зав» = Выполнен
-        return card.data.transferStatus === 'Выполнен';
-      }
+      if(card.kind==='trip'||card.kind==='arrival') return true; // поездки и завозы — без фильтра по статусу
+      if(card.kind==='transfer') return card.data.transferStatus === 'Выполнен';
       var s=card.data.status||'';
       return s==='Завершён'||s==='Завершен'||s==='завершен-отмена';
     });
@@ -1367,10 +1363,13 @@ function submitTransfer(){
 function submitTrip(){
   var lc=parseFloat(document.getElementById('log-cost').value)||0;
   var ec=parseFloat(document.getElementById('exp-cost').value)||20;
+  var total = lc + ec; // итого расход = логистика + экспедитор
   sbPost('journal',[{
     type:'Поездка', operation_id:generateId('TRP'),
     amount:lc, expeditor:ec, status:'Завершён'
   }]).then(function(){
+    // Итого расход поездки → zp
+    if(total > 0) moneyAdd('zp', total);
     toast('Поездка сохранена','ok');
     document.getElementById('log-cost').value='';
     document.getElementById('exp-cost').value='20';
