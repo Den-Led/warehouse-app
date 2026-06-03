@@ -18,12 +18,19 @@
   --surf2:#1e2334;--border:#2a3047;--border2:#3a4260;
   --green:#2ecc8a;--amber:#f5a623;--coral:#ff6b6b;--violet:#a78bfa;
   --text2:#8892aa;--text3:#555f7a;
+  /* Цвет тоггла оплаты Яна = голубой */
+  --pay-yane:#378bff;
   --r:16px;--rs:12px;
   --nav:80px;
   --safe-b:env(safe-area-inset-bottom, 0px);
   --safe-t:env(safe-area-inset-top, 0px);
 }
 html,body{height:100%;overflow:hidden;background:var(--bg)}
+/* Светлая тема */
+.theme-light{
+  --surf2:#f0f2f5;--border:#d0d5e0;--border2:#b8c0d0;
+  --text2:#555f7a;--text3:#9098b0;
+}
 body{font-family:'Manrope',sans-serif;color:var(--text);display:flex;flex-direction:column;font-size:17px}
 
 .screen{display:none;flex:1;overflow:hidden;min-height:0}
@@ -197,6 +204,7 @@ textarea{resize:vertical;min-height:88px}
   justify-content:flex-start;padding:0 4px;gap:0;overflow:hidden;
 }
 .emoji-toggle input:checked + .emoji-track{background:var(--green)}
+.emoji-toggle.pay-yane input:checked + .emoji-track{background:var(--pay-yane)}
 .emoji-knob{
   width:26px;height:26px;border-radius:50%;background:#fff;
   display:flex;align-items:center;justify-content:center;
@@ -642,6 +650,18 @@ try {
     tg.expand();
   }
 } catch(e) { tg = null; }
+
+function applyTheme() {
+  try {
+    var isDark = true;
+    var bgColor = (tg && tg.themeParams && tg.themeParams.bg_color) || '';
+    if(bgColor){ isDark = parseInt(bgColor.slice(1,3),16) < 128; }
+    else if(tg){ isDark = tg.colorScheme !== 'light'; }
+    if(!isDark) document.documentElement.classList.add('theme-light');
+    else        document.documentElement.classList.remove('theme-light');
+  } catch(e) {}
+}
+applyTheme();
 
 // ══════════════════════════════════════════════════════════════
 // STATE
@@ -1131,6 +1151,13 @@ function confirmPayMethod(method){
   else shortName = method.replace('Оплатили ','').slice(0,4);
   var pn = document.getElementById('pay-name-'+orderId);
   if(pn) pn.textContent = shortName;
+  // Цвет тоггла: Яна=голубой, Ден=зелёный
+  var card = document.getElementById('card-'+orderId);
+  var payLabel = card ? card.querySelector('.emoji-toggle') : null;
+  if(payLabel){
+    if(method.indexOf('Яне') !== -1) payLabel.classList.add('pay-yane');
+    else payLabel.classList.remove('pay-yane');
+  }
 
   // п.2: Оплатили Яне → сумма заказа → client_yane
   // п.3: Оплатили Дену → сумма заказа → client_den
