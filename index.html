@@ -332,9 +332,16 @@ hr.div{border:none;border-top:1px solid var(--border);margin:14px 0}
         <div class="field" style="margin-bottom:16px">
           <label>Telegram</label>
           <div style="position:relative;display:flex;align-items:center">
-            <span style="position:absolute;left:14px;color:var(--text3);font-size:17px;pointer-events:none">@</span>
+            <span style="position:absolute;left:14px;color:var(--text3);font-size:17px;pointer-events:none;z-index:1">@</span>
             <input type="text" id="order-tg" placeholder="username" autocomplete="off"
-              style="padding-left:30px">
+              style="padding-left:30px"
+              oninput="onTgInput()" onblur="hideTgSuggest()">
+            <div id="tg-suggest" style="
+              display:none;position:absolute;top:100%;left:0;right:0;z-index:200;
+              background:var(--surf2);border:1.5px solid var(--accent);
+              border-top:none;border-radius:0 0 var(--rs) var(--rs);
+              max-height:200px;overflow-y:auto;
+            "></div>
           </div>
         </div>
         <div class="stock-load-msg" id="stock-loading" style="display:none">
@@ -1402,6 +1409,8 @@ function resetOrder(){
   document.getElementById('order-customer').value='';
   document.getElementById('order-tg').value='';
   document.getElementById('order-note').value='';
+  var cs=document.getElementById('customer-suggest'); if(cs) cs.style.display='none';
+  var ts=document.getElementById('tg-suggest'); if(ts) ts.style.display='none';
   document.getElementById('btn-add-o').disabled=false;
   if(stockReady) addOrderItem();
 }
@@ -1587,6 +1596,42 @@ function loadCustomerNames() {
       });
       customerNames = names.sort(function(a,b){ return a.localeCompare(b,'ru'); });
     }).catch(function(){});
+}
+
+function onTgInput() {
+  var val = document.getElementById('order-tg').value.trim().toLowerCase().replace(/^@/,'');
+  var box = document.getElementById('tg-suggest');
+  if(!val || !customerNames.length){ box.style.display='none'; return; }
+  var matches = customerNames.filter(function(cl){
+    var tg = typeof cl === 'object' ? (cl.tg_username||'') : '';
+    return tg && tg.toLowerCase().indexOf(val) === 0;
+  });
+  if(!matches.length){ box.style.display='none'; return; }
+  box.innerHTML = matches.slice(0,6).map(function(cl){
+    var tg   = typeof cl === 'object' ? cl.tg_username : '';
+    var name = typeof cl === 'object' ? cl.name : cl;
+    return '<div class="suggest-item" onmousedown="pickTg(this.dataset.tg,this.dataset.n)"'+
+      ' data-tg="'+esc(tg)+'" data-n="'+esc(name)+'">'+
+      '<span style="color:var(--accent)">@'+esc(tg)+'</span>'+
+      (name ? ' <span style="font-size:12px;color:var(--text3)">'+esc(name)+'</span>' : '')+
+    '</div>';
+  }).join('');
+  box.style.display = 'block';
+}
+
+function pickTg(tg, name) {
+  document.getElementById('order-tg').value = tg;
+  // Если поле имени пустое — подставить имя клиента
+  var nameField = document.getElementById('order-customer');
+  if(nameField && !nameField.value.trim() && name) nameField.value = name;
+  document.getElementById('tg-suggest').style.display = 'none';
+}
+
+function hideTgSuggest() {
+  setTimeout(function(){
+    var box = document.getElementById('tg-suggest');
+    if(box) box.style.display = 'none';
+  }, 150);
 }
 
 function onCustomerInput() {
