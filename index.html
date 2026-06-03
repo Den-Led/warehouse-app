@@ -1584,18 +1584,14 @@ function openMoney() {
 // ══════════════════════════════════════════════════════════════
 // АВТОДОПОЛНЕНИЕ ИМЕНИ ЗАКАЗЧИКА
 // ══════════════════════════════════════════════════════════════
-var customerNames = [];
+var customerNames = []; // массив объектов {name, tg_username}
 
 function loadCustomerNames() {
-  sbGet('journal', 'select=customer&type=eq.Заказ&customer=not.is.null&customer=neq.')
+  sbGet('clients', 'select=name,tg_username&order=name.asc')
     .then(function(rows){
-      var seen = {}, names = [];
-      (rows||[]).forEach(function(r){
-        var n = (r.customer||'').trim();
-        if(n && !seen[n.toLowerCase()]){ seen[n.toLowerCase()]=true; names.push(n); }
-      });
-      customerNames = names.sort(function(a,b){ return a.localeCompare(b,'ru'); });
-    }).catch(function(){});
+      customerNames = (rows||[]).filter(function(r){ return r.name && r.name.trim(); });
+      console.log('clients loaded:', customerNames.length, customerNames);
+    }).catch(function(e){ console.error('loadCustomerNames error:', e); });
 }
 
 function onTgInput() {
