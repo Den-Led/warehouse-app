@@ -1386,28 +1386,11 @@ function submitOrder(){
       });
       return sbPost('journal', rows);
     }).then(function(){
-      // Если клиент новый — добавить в таблицу clients
-      if(customer) {
-        var known = customerNames.find(function(cl){
-          return cl.name.toLowerCase() === customer.toLowerCase();
-        });
-        if(!known) {
-          // Новый клиент — сохраняем
-          var newClient = {name: customer};
-          if(tgUsername) newClient.tg_username = tgUsername;
-          sbPost('clients', [newClient])
-            .then(function(){ loadCustomerNames(); })
-            .catch(function(){});
-        } else if(tgUsername && !known.tg_username) {
-          // Клиент есть, но username не был — обновляем
-          sbPatch('clients', 'name=eq.'+encodeURIComponent(customer), {tg_username: tgUsername})
-            .then(function(){ loadCustomerNames(); })
-            .catch(function(){});
-        }
-      }
       busy('btn-order',false);
       toast('Заказ сохранён\n'+orderId,'ok');
       resetOrder(); loadStock();
+      // Сохраняем клиента отдельно — не блокируем основной поток
+      saveClientIfNew(customer, tgUsername);
     }).catch(function(e){busy('btn-order',false);toast('Ошибка сохранения','err');});
   }).catch(function(){busy('btn-order',false);toast('Ошибка связи','err');});
 }
@@ -1671,6 +1654,42 @@ function saveComment() {
     .catch(function(){
       toast('Ошибка сохранения','err');
     });
+}
+
+function saveClientIfNew(name, tgUsername) {
+  if(!name) return;
+  try {
+    // Ищем клиента — сначала проверяем кэш
+    var known = null;
+    if(customerNames && customerNames.length) {
+      for(var i=0;i<customerNames.length;i++){
+        var cl = customerNames[i];
+        var clName = typeof cl === 'object' ? cl.name : cl;
+        if(clName && clName.toLowerCase() === name.toLowerCase()){
+          known = cl; break;
+        }
+      }
+    }
+
+    if(!known) {
+      // Новый клиент — добавляем
+      var newClient = {name: name};
+      if(tgUsername) newClient.tg_username = tgUsername;
+      sbPost('clients', [newClient])
+        .then(function(){ loadCustomerNames(); })
+        .catch(function(e){ console.error('client save error:', e); });
+    } else {
+      // Клиент есть — обновляем username если появился новый
+      var existingTg = typeof known === 'object' ? known.tg_username : '';
+      if(tgUsername && !existingTg) {
+        sbPatch('clients', 'name=eq.'+encodeURIComponent(name), {tg_username: tgUsername})
+          .then(function(){ loadCustomerNames(); })
+          .catch(function(e){ console.error('client update error:', e); });
+      }
+    }
+  } catch(e) {
+    console.error('saveClientIfNew error:', e);
+  }
 }
 
 function openTg(username) {
