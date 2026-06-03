@@ -1971,6 +1971,14 @@ document.querySelectorAll('.btn-sub').forEach(function(b){b.setAttribute('data-l
 navTo('orders');
 setTypeFilter('Заказ');
 setStatusFilter('active');
+
+// Скрывать клавиатуру по нажатию Enter (iOS)
+document.addEventListener('keydown', function(e){
+  if(e.key === 'Enter' || e.keyCode === 13){
+    e.preventDefault();
+    document.activeElement.blur();
+  }
+});
 </script>
 </body>
 </html>
