@@ -2325,16 +2325,20 @@ function setKeyboardMode(active) {
 
 // Отслеживаем фокус на полях ввода
 document.addEventListener('focusin', function(e){
-  var tag = e.target.tagName;
-  if(tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT'){
+  var tag  = e.target.tagName;
+  var type = (e.target.type || '').toLowerCase();
+  // Только текстовые поля — не чекбоксы, не радио, не селекты с опциями
+  if((tag === 'INPUT' && type !== 'checkbox' && type !== 'radio') ||
+     tag === 'TEXTAREA'){
     setKeyboardMode(true);
   }
 });
 document.addEventListener('focusout', function(e){
-  // Небольшая задержка — фокус может переходить между полями
   setTimeout(function(){
-    var tag = document.activeElement ? document.activeElement.tagName : '';
-    if(tag !== 'INPUT' && tag !== 'TEXTAREA' && tag !== 'SELECT'){
+    var el   = document.activeElement;
+    var tag  = el ? el.tagName : '';
+    var type = el ? (el.type||'').toLowerCase() : '';
+    if(!((tag==='INPUT' && type!=='checkbox' && type!=='radio') || tag==='TEXTAREA')){
       setKeyboardMode(false);
     }
   }, 100);
