@@ -882,7 +882,8 @@ function openOrders(){
           comment:        r.comment     || '',
           status:         r.status      || '',
           my_percent:     Number(r.my_percent) || 0,
-          tg_username:    r.tg_username  || ''
+          tg_username:    r.tg_username  || '',
+          discount:       Number(r.discount)   || 0
         };
       });
       renderOrders();
@@ -899,7 +900,7 @@ function renderOrders(){
         groups[e.id]={id:e.id,date:e.date,customer:e.customer,
           tg_username:e.tg_username||'',
           payStatus:e.payStatus,payMethod:e.payMethod,delivery:e.delivery,
-          comment:e.comment,status:e.status,items:[],totalPercent:0};
+          comment:e.comment,status:e.status,items:[],totalPercent:0,discount:e.discount||0};
       }
       groups[e.id].items.push({name:e.goods,qty:e.qty,price:e.price});
       groups[e.id].totalPercent += e.my_percent || 0;
@@ -1038,7 +1039,12 @@ function renderOrderCard(d){
       // ── Строка 3: итого слева + кнопка справа ──
       '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px">'+
         '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;cursor:pointer" onclick="openOrderEdit(this.dataset.oid)" data-oid="'+oid+'">'+
-          '<div class="op-total-val" style="text-decoration:underline dotted">'+(total>0?fmt(total)+' ₾':'—')+'</div>'+
+          '<div class="op-total-val" style="text-decoration:underline dotted">'+
+            (total>0 ? fmt(d.discount>0 ? total-d.discount : total)+' ₾' : '—')+
+          '</div>'+
+          (d.discount>0
+            ? '<div style="font-size:12px;color:var(--coral);font-weight:600">-'+fmt(d.discount)+' ₾</div>'
+            : '')+
           (d.totalPercent>0
             ? '<div style="background:rgba(167,139,250,.12);border:1px solid rgba(167,139,250,.3);border-radius:8px;padding:3px 10px">'+
                 '<div style="font-size:14px;font-weight:700;color:var(--violet)">'+fmt(d.totalPercent)+' ₾</div>'+
@@ -2034,20 +2040,23 @@ function fieldStyle() {
     'color:var(--text);font-family:Manrope,sans-serif;font-size:15px;padding:9px 12px;outline:none';
 }
 
-function renderEditRow(id, goodsName, qty, margin, isNew) {
+function renderEditRow(id, goodsName, qty, price, margin, isNew) {
   var selectOpts = buildStockOptsEdit();
   return '<div id="edit-row-'+id+'" style="margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid var(--border)">'+
     (isNew ? '<div style="font-size:10px;font-weight:700;color:var(--violet);letter-spacing:.5px;text-transform:uppercase;margin-bottom:6px">НОВАЯ ПОЗИЦИЯ</div>' : '')+
-    // Выбор товара
     '<select id="edit-goods-'+id+'" style="'+fieldStyle()+';margin-bottom:8px;padding-right:36px;appearance:none;'+
       'background-image:url(\'data:image/svg+xml,%3Csvg xmlns=\\\'http://www.w3.org/2000/svg\\\' width=\\\'12\\\' height=\\\'8\\\' viewBox=\\\'0 0 12 8\\\'%3E%3Cpath d=\\\'M1 1l5 5 5-5\\\' stroke=\\\'%238892aa\\\' stroke-width=\\\'1.5\\\' fill=\\\'none\\\' stroke-linecap=\\\'round\\\'/%3E%3C/svg%3E\');'+
       'background-repeat:no-repeat;background-position:right 12px center">'+
       selectOpts+
     '</select>'+
-    '<div style="display:grid;grid-template-columns:1fr 1fr 36px;gap:8px;align-items:end">'+
+    '<div style="display:grid;grid-template-columns:1fr 1fr 1fr 36px;gap:8px;align-items:end">'+
       '<div>'+
-        '<label style="font-size:11px;color:var(--text3);display:block;margin-bottom:4px">Количество</label>'+
+        '<label style="font-size:11px;color:var(--text3);display:block;margin-bottom:4px">Кол-во</label>'+
         '<input type="number" id="edit-qty-'+id+'" value="'+(qty||1)+'" min="1" step="1" style="'+fieldStyle()+'">'+
+      '</div>'+
+      '<div>'+
+        '<label style="font-size:11px;color:var(--text3);display:block;margin-bottom:4px">Цена (₾)</label>'+
+        '<input type="number" id="edit-price-'+id+'" value="'+(price||0)+'" min="0" step="0.01" style="'+fieldStyle()+'">'+
       '</div>'+
       '<div>'+
         '<label style="font-size:11px;color:var(--text3);display:block;margin-bottom:4px">Маржа (₾)</label>'+
@@ -2071,7 +2080,7 @@ function addEditNewRow() {
   _editNewRows.push({id: newId});
   var container = document.getElementById('order-edit-items');
   var div = document.createElement('div');
-  div.innerHTML = renderEditRow(newId, '', 1, 0, true);
+  div.innerHTML = renderEditRow(newId, '', 1, 0, 0, true);
   // Вставить перед кнопкой «+ Добавить»
   var addBtn = document.getElementById('edit-add-btn');
   container.insertBefore(div.firstChild, addBtn);
@@ -2100,12 +2109,12 @@ function openOrderEdit(orderId) {
   }
 
   sbGet('journal',
-    'select=id,goods,goods_id,qty,my_percent&operation_id=eq.'+encodeURIComponent(orderId)+'&type=eq.Заказ')
+    'select=id,goods,goods_id,qty,price_per_unit,my_percent&operation_id=eq.'+encodeURIComponent(orderId)+'&type=eq.Заказ')
     .then(function(rows){
       _editOrderRows = rows || [];
 
       var html = _editOrderRows.map(function(r){
-        return renderEditRow(r.id, r.goods, r.qty, r.my_percent, false);
+        return renderEditRow(r.id, r.goods, r.qty, r.price_per_unit||0, r.my_percent, false);
       }).join('');
 
       // Кнопка добавить новую позицию
@@ -2152,10 +2161,11 @@ function saveOrderEdit() {
       var newGoods  = opt.getAttribute('data-name') || r.goods;
       var newGoodsId= sel.value || r.goods_id;
       var newQty    = parseFloat(qtyEl.value)    || r.qty;
+      var newPrice  = parseFloat(document.getElementById('edit-price-'+r.id).value) || 0;
       var newMargin = parseFloat(marginEl.value) || 0;
       return sbPatch('journal','id=eq.'+r.id,{
         goods: newGoods, goods_id: newGoodsId,
-        qty: newQty, my_percent: newMargin
+        qty: newQty, price_per_unit: newPrice, my_percent: newMargin
       });
     });
   });
@@ -2171,8 +2181,8 @@ function saveOrderEdit() {
       var goodsName = opt.getAttribute('data-name') || '';
       var goodsId   = sel.value;
       var qty       = parseFloat(qtyEl.value)    || 1;
+      var price     = parseFloat(document.getElementById('edit-price-'+r.id).value) || parseFloat(opt.getAttribute('data-pr')) || 0;
       var margin    = parseFloat(marginEl.value) || 0;
-      var price     = parseFloat(opt.getAttribute('data-pr')) || 0;
       if(!goodsName) return;
       return sbPost('journal',[{
         type:'Заказ', operation_id:_editOrderId,
