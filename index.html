@@ -966,9 +966,10 @@ function renderOrderCard(d){
       '<span class="op-goods-sum">'+(sum>0?fmt(sum)+' ₾':'—')+'</span></div>';
   }).join('');
 
-  // Эмодзи-тоггл оплаты
+  // Эмодзи-тоггл оплаты (голубой если Яна, зелёный если Ден)
+  var isYane = paid && d.payMethod && d.payMethod.indexOf('Яне') !== -1;
   var payToggle =
-    '<label class="emoji-toggle">'+
+    '<label class="emoji-toggle'+(isYane ? ' pay-yane' : '')+'" id="pay-tog-'+oid+'">'+
       '<input type="checkbox" '+(paid?'checked':'')+
       ' onchange="togglePay(this.dataset.oid,this)" data-oid="'+oid+'">'+
       '<span class="emoji-track">'+
@@ -1188,9 +1189,8 @@ function confirmPayMethod(method){
   else shortName = method.replace('Оплатили ','').slice(0,4);
   var pn = document.getElementById('pay-name-'+orderId);
   if(pn) pn.textContent = shortName;
-  // Цвет тоггла: Яна=голубой, Ден=зелёный
-  var card = document.getElementById('card-'+orderId);
-  var payLabel = card ? card.querySelector('.emoji-toggle') : null;
+  // Цвет тоггла: Яна=голубой, Ден=зелёный — ищем по id
+  var payLabel = document.getElementById('pay-tog-'+orderId);
   if(payLabel){
     if(method.indexOf('Яне') !== -1) payLabel.classList.add('pay-yane');
     else payLabel.classList.remove('pay-yane');
