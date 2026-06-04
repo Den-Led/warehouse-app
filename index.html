@@ -1220,8 +1220,10 @@ function cancelPayPop(){
 function toggleDelivery(orderId,chk){
   var isDelivered = chk.checked;
   updateOrderField(orderId,'delivery',isDelivered?'Да':'Нет','','');
-  var el=document.getElementById('del-val-'+orderId);
-  if(el){el.textContent=isDelivered?'Доставлен':'Не дост.';el.className='mini-tog-val '+(isDelivered?'yes':'no');}
+
+  // Обновить цвет трека тоггла доставки визуально
+  var track = chk.nextElementSibling; // span.emoji-track
+  if(track) track.style.background = isDelivered ? 'var(--green)' : '';
 
   // Доставка ВКЛ:  reserved → sold
   // Доставка ВЫКЛ: sold → reserved (откат)
@@ -1275,7 +1277,19 @@ function updateOrderField(orderId,f1,v1,f2,v2){
   if(f1==='payMethod')  body.pay_method  = v1;
   if(f1==='delivery')   body.delivery    = v1;
   if(f2==='payMethod')  body.pay_method  = v2;
-  sbPatch('journal', 'operation_id=eq.'+encodeURIComponent(orderId), body)
+
+  // Обновить локально в allEntries чтобы не перезагружать весь список
+  allEntries.forEach(function(e){
+    if(e.id !== orderId) return;
+    if(f1==='payStatus')  e.payStatus  = v1;
+    if(f1==='payMethod')  e.payMethod  = v1;
+    if(f1==='delivery')   e.delivery   = v1;
+    if(f2==='payMethod')  e.payMethod  = v2;
+  });
+
+  sbPatch('journal',
+    'operation_id=eq.'+encodeURIComponent(orderId)+'&type=eq.Заказ',
+    body)
     .catch(function(){ toast('Ошибка сохранения','err'); });
 }
 function askComplete(orderId,btn){
