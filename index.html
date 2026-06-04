@@ -1569,15 +1569,23 @@ function submitOrder(){
     var errors = results.filter(function(r){return !r.ok;}).map(function(r){return r.error;});
     if(errors.length){busy('btn-order',false);toast(errors.join('\n'),'err');return;}
 
-    // Бронируем
-    var bookPromises = results.map(function(r){
-      return sbPatch('stock','id=eq.'+encodeURIComponent(r.row.id),{
-        available: (r.row.available||0) - r.item.qty,
-        reserved:  (r.row.reserved||0)  + r.item.qty
+    // Бронируем ПОСЛЕДОВАТЕЛЬНО чтобы избежать race condition
+    var bookChain = Promise.resolve();
+    results.forEach(function(r){
+      bookChain = bookChain.then(function(){
+        // Перечитываем свежие данные перед каждым патчем
+        return sbGet('stock','select=available,reserved&id=eq.'+encodeURIComponent(r.row.id))
+          .then(function(fresh){
+            var s = (fresh && fresh[0]) ? fresh[0] : r.row;
+            return sbPatch('stock','id=eq.'+encodeURIComponent(r.row.id),{
+              available: Math.max(0, (Number(s.available)||0) - r.item.qty),
+              reserved:  (Number(s.reserved)||0) + r.item.qty
+            });
+          });
       });
     });
 
-    Promise.all(bookPromises).then(function(){
+    bookChain.then(function(){
       // Считаем my_percent для каждой позиции: qty * percent товара
       var rows = results.map(function(r){
         var stockRow  = r.row;
@@ -1598,7 +1606,6 @@ function submitOrder(){
       busy('btn-order',false);
       toast('Заказ сохранён\n'+orderId,'ok');
       resetOrder(); loadStock();
-      // Сохраняем клиента отдельно — не блокируем основной поток
       saveClientIfNew(customer, tgUsername);
     }).catch(function(e){busy('btn-order',false);toast('Ошибка сохранения','err');});
   }).catch(function(){busy('btn-order',false);toast('Ошибка связи','err');});
