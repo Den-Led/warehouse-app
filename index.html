@@ -1050,8 +1050,11 @@ function renderOrderCard(d){
           : isDone
             ? '<div class="op-status-done">✓ Завершён</div>'
             : '<div style="display:flex;gap:6px;align-items:center">'+
-                '<button style="background:transparent;border:1.5px solid var(--border2);border-radius:var(--rs);color:var(--text2);font-size:16px;padding:7px 10px;cursor:pointer;line-height:1" onclick="askReturn(this.dataset.oid,this)" data-oid="'+oid+'">↩</button>'+
-                '<button class="btn-complete" id="bcmp-'+oid+'" onclick="askComplete(this.dataset.oid,this)" data-oid="'+oid+'">Завершить</button>'+
+                '<button style="background:transparent;border:1.5px solid var(--coral);border-radius:var(--rs);color:var(--coral);font-size:16px;padding:7px 10px;cursor:pointer;line-height:1" onclick="askReturn(this.dataset.oid,this)" data-oid="'+oid+'">↩</button>'+
+                '<button class="btn-complete" id="bcmp-'+oid+'"'+
+                ' onclick="askComplete(this.dataset.oid,this)" data-oid="'+oid+'"'+
+                (paid && deliv ? '' : ' disabled style="opacity:.35;cursor:not-allowed;border-color:var(--border2);color:var(--text3)"')+
+                '>Завершить</button>'+
               '</div>')+
       '</div>'+
 
@@ -1189,6 +1192,7 @@ function togglePay(orderId,chk){
     updateOrderField(orderId,'payStatus','Не оплачен','payMethod','');
     var pm=document.getElementById('pay-method-'+orderId);
     if(pm){pm.style.visibility='hidden';}
+    updateCompleteBtn(orderId);
   }
 }
 function confirmPayMethod(method){
@@ -1221,6 +1225,8 @@ function confirmPayMethod(method){
     });
   }
 
+  // Обновить состояние кнопки Завершить
+  updateCompleteBtn(orderId);
   _pendingPayOrderId=null; _pendingPayToggle=null;
 }
 function cancelPayPop(){
@@ -1237,8 +1243,10 @@ function toggleDelivery(orderId,chk){
   updateOrderField(orderId,'delivery',isDelivered?'Да':'Нет','','');
 
   // Обновить цвет трека тоггла доставки визуально
-  var track = chk.nextElementSibling; // span.emoji-track
+  var track = chk.nextElementSibling;
   if(track) track.style.background = isDelivered ? 'var(--green)' : '';
+  // Обновить состояние кнопки Завершить
+  setTimeout(function(){ updateCompleteBtn(orderId); }, 50);
 
   // Доставка ВКЛ:  reserved → sold
   // Доставка ВЫКЛ: sold → reserved (откат)
@@ -1307,6 +1315,36 @@ function updateOrderField(orderId,f1,v1,f2,v2){
     body)
     .catch(function(){ toast('Ошибка сохранения','err'); });
 }
+// Обновить состояние кнопки Завершить по текущим данным карточки
+function updateCompleteBtn(orderId) {
+  var btn = document.getElementById('bcmp-'+orderId);
+  if(!btn) return;
+  // Найти актуальные данные в allEntries
+  var group = null;
+  var groups = {};
+  allEntries.forEach(function(e){
+    if(e.type==='Заказ' && e.id === orderId){
+      if(!groups[orderId]) groups[orderId] = {payStatus:e.payStatus, delivery:e.delivery};
+    }
+  });
+  var d = groups[orderId];
+  var paid  = d && d.payStatus === 'Оплачен';
+  var deliv = d && d.delivery  === 'Да';
+  var canComplete = paid && deliv;
+  btn.disabled = !canComplete;
+  if(canComplete){
+    btn.style.opacity = '';
+    btn.style.cursor  = '';
+    btn.style.borderColor = '';
+    btn.style.color   = '';
+  } else {
+    btn.style.opacity = '.35';
+    btn.style.cursor  = 'not-allowed';
+    btn.style.borderColor = 'var(--border2)';
+    btn.style.color   = 'var(--text3)';
+  }
+}
+
 function askReturn(orderId, btn){
   _pendingCompleteId = orderId;
   _pendingCompleteBtn = btn;
