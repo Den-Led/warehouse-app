@@ -608,6 +608,18 @@ hr.div{border:none;border-top:1px solid var(--border);margin:14px 0}
   </div>
 </div>
 
+<div class="popup-overlay hidden" id="pop-return">
+  <div class="popup">
+    <div class="popup-handle"></div>
+    <div class="popup-title">Возврат заказа?</div>
+    <div class="popup-sub">Товар вернётся на склад. Статус — «завершен-отмена».</div>
+    <div class="popup-btns">
+      <button class="popup-btn danger" onclick="doReturnOrder()">↩ Да, возврат</button>
+      <button class="popup-btn cancel" onclick="closePopup('pop-return')">Отмена</button>
+    </div>
+  </div>
+</div>
+
 <div class="popup-overlay hidden" id="pop-complete">
   <div class="popup">
     <div class="popup-handle"></div>
@@ -615,7 +627,7 @@ hr.div{border:none;border-top:1px solid var(--border);margin:14px 0}
     <div class="popup-sub">Выберите действие:</div>
     <div class="popup-btns">
       <button class="popup-btn success" onclick="doCompleteConfirmed()">✓ Да, завершить</button>
-      <button class="popup-btn danger"  onclick="doReturnOrder()">↩ Возврат</button>
+      <button class="popup-btn danger"  onclick="doCompleteConfirmed()">✓ Да, завершить</button>
       <button class="popup-btn cancel"  onclick="closePopup('pop-complete')">Отмена</button>
     </div>
   </div>
@@ -1037,7 +1049,10 @@ function renderOrderCard(d){
           ? '<div class="op-status-done" style="color:var(--coral);background:rgba(255,107,107,.1);border-color:rgba(255,107,107,.3)">✕ Завершён</div>'
           : isDone
             ? '<div class="op-status-done">✓ Завершён</div>'
-            : '<button class="btn-complete" id="bcmp-'+oid+'" onclick="askComplete(this.dataset.oid,this)" data-oid="'+oid+'">Завершить</button>')+
+            : '<div style="display:flex;gap:6px;align-items:center">'+
+                '<button style="background:transparent;border:1.5px solid var(--border2);border-radius:var(--rs);color:var(--text2);font-size:16px;padding:7px 10px;cursor:pointer;line-height:1" onclick="askReturn(this.dataset.oid,this)" data-oid="'+oid+'">↩</button>'+
+                '<button class="btn-complete" id="bcmp-'+oid+'" onclick="askComplete(this.dataset.oid,this)" data-oid="'+oid+'">Завершить</button>'+
+              '</div>')+
       '</div>'+
 
     '</div>'
@@ -1292,11 +1307,18 @@ function updateOrderField(orderId,f1,v1,f2,v2){
     body)
     .catch(function(){ toast('Ошибка сохранения','err'); });
 }
+function askReturn(orderId, btn){
+  _pendingCompleteId = orderId;
+  _pendingCompleteBtn = btn;
+  document.getElementById('pop-return').classList.remove('hidden');
+}
+
 function askComplete(orderId,btn){
   _pendingCompleteId=orderId; _pendingCompleteBtn=btn;
   document.getElementById('pop-complete').classList.remove('hidden');
 }
 function doReturnOrder(){
+  closePopup('pop-return');
   closePopup('pop-complete');
   if(!_pendingCompleteId) return;
   var orderId=_pendingCompleteId, btn=_pendingCompleteBtn;
