@@ -488,6 +488,30 @@ hr.div{border:none;border-top:1px solid var(--border);margin:14px 0}
       <div style="font-size:13px;color:var(--text2)">Текущий баланс</div>
     </div>
 
+    <!-- Кнопка Остатки -->
+    <button onclick="copyStockToClipboard()" style="
+      width:100%;background:var(--surf);border:1.5px solid var(--border);
+      border-radius:var(--r);padding:16px;font-family:'Manrope',sans-serif;
+      font-size:16px;font-weight:600;color:var(--text2);cursor:pointer;
+      display:flex;align-items:center;justify-content:space-between;
+      margin-bottom:14px;
+    ">
+      <span>📋 Остатки товара</span>
+      <span style="font-size:13px;color:var(--text3)">копировать</span>
+    </button>
+
+    <!-- Кнопка Депозит -->
+    <button onclick="sendDepositToUser()" style="
+      width:100%;background:var(--surf);border:1.5px solid var(--border);
+      border-radius:var(--r);padding:16px;font-family:'Manrope',sans-serif;
+      font-size:16px;font-weight:600;color:var(--text2);cursor:pointer;
+      display:flex;align-items:center;justify-content:space-between;
+      margin-bottom:14px;
+    ">
+      <span>💰 Депозит</span>
+      <span style="font-size:13px;color:var(--text3)">отправить</span>
+    </button>
+
     <!-- Новая операция -->
     <div class="card" style="padding:0;overflow:hidden">
       <!-- Заголовок-кнопка — нажать чтобы раскрыть -->
@@ -1693,6 +1717,79 @@ function hideCustomerSuggest() {
     var box = document.getElementById('customer-suggest');
     if(box) box.style.display = 'none';
   }, 150);
+}
+
+function sendDepositToUser() {
+  sbGet('money', 'select=deposit&id=eq.1')
+    .then(function(rows){
+      var bal = rows && rows[0] ? Number(rows[0].deposit) : 0;
+      var text = 'Депозит: ' + fmt(bal) + ' ₾';
+      try {
+        if(tg && tg.openTelegramLink){
+          tg.openTelegramLink('https://t.me/violoncelle11?text=' + encodeURIComponent(text));
+          return;
+        }
+      } catch(e){}
+      // Fallback — копируем
+      if(navigator.clipboard && navigator.clipboard.writeText){
+        navigator.clipboard.writeText(text)
+          .then(function(){ toast('Скопировано (откройте чат вручную)','ok'); })
+          .catch(function(){ fallbackCopy(text); });
+      } else {
+        fallbackCopy(text);
+      }
+    })
+    .catch(function(){ toast('Ошибка загрузки депозита','err'); });
+}
+
+function copyStockToClipboard() {
+  sbGet('stock', 'select=name,available&order=name.asc')
+    .then(function(rows){
+      if(!rows || !rows.length){ toast('Склад пуст','err'); return; }
+      var lines = rows
+        .filter(function(r){ return (Number(r.available)||0) > 0; })
+        .map(function(r){ return '• ' + r.name + ' — ' + r.available + ' шт'; });
+      if(!lines.length){ toast('Нет товаров в наличии','err'); return; }
+
+      var text = lines.join('\n');
+
+      // Отправить в Telegram пользователю @violoncelle11
+      var url = 'tg://msg?to=violoncelle11&text=' + encodeURIComponent(text);
+      try {
+        if(tg && tg.openTelegramLink){
+          tg.openTelegramLink('https://t.me/violoncelle11?text=' + encodeURIComponent(text));
+          return;
+        }
+      } catch(e){}
+
+      // Fallback — просто копируем
+      if(navigator.clipboard && navigator.clipboard.writeText){
+        navigator.clipboard.writeText(text)
+          .then(function(){ toast('Скопировано (откройте чат вручную)','ok'); })
+          .catch(function(){ fallbackCopy(text); });
+      } else {
+        fallbackCopy(text);
+      }
+    })
+    .catch(function(){ toast('Ошибка загрузки склада','err'); });
+}
+
+// Fallback для старых браузеров и Telegram WebView
+function fallbackCopy(text) {
+  var ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.position = 'fixed';
+  ta.style.opacity = '0';
+  document.body.appendChild(ta);
+  ta.focus();
+  ta.select();
+  try {
+    document.execCommand('copy');
+    toast('Остатки скопированы ✓','ok');
+  } catch(e) {
+    toast('Не удалось скопировать','err');
+  }
+  document.body.removeChild(ta);
 }
 
 function toggleMoneyForm() {
