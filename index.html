@@ -571,6 +571,7 @@ hr.div{border:none;border-top:1px solid var(--border);margin:14px 0}
     <div id="order-edit-items" style="margin-bottom:14px"></div>
     <div class="popup-btns">
       <button class="popup-btn success" onclick="saveOrderEdit()">Сохранить</button>
+      <button class="popup-btn danger"  id="btn-reactivate" onclick="reactivateOrder()" style="display:none">↺ Не завершать</button>
       <button class="popup-btn cancel"  onclick="closePopup('pop-order-edit')">Отмена</button>
     </div>
   </div>
@@ -624,10 +625,9 @@ hr.div{border:none;border-top:1px solid var(--border);margin:14px 0}
   <div class="popup">
     <div class="popup-handle"></div>
     <div class="popup-title">Завершить заказ?</div>
-    <div class="popup-sub">Выберите действие:</div>
+    <div class="popup-sub">Товар будет списан. Это действие нельзя отменить.</div>
     <div class="popup-btns">
       <button class="popup-btn success" onclick="doCompleteConfirmed()">✓ Да, завершить</button>
-      <button class="popup-btn danger"  onclick="doCompleteConfirmed()">✓ Да, завершить</button>
       <button class="popup-btn cancel"  onclick="closePopup('pop-complete')">Отмена</button>
     </div>
   </div>
@@ -1351,6 +1351,60 @@ function askReturn(orderId, btn){
   document.getElementById('pop-return').classList.remove('hidden');
 }
 
+function reactivateOrder(){
+  var btn = document.getElementById('btn-reactivate');
+  var orderId = btn ? btn.getAttribute('data-oid') : null;
+  if(!orderId) return;
+  sbPatch('journal',
+    'operation_id=eq.'+encodeURIComponent(orderId)+'&type=eq.Заказ',
+    {status:'Активен'})
+    .then(function(){
+      // Обновить локально
+      allEntries.forEach(function(e){
+        if(e.id === orderId && e.type === 'Заказ') e.status = 'Активен';
+      });
+      closePopup('pop-order-edit');
+      toast('Заказ снова активен','ok');
+      openOrders();
+    })
+    .catch(function(){ toast('Ошибка','err'); });
+}
+
+function doCancelComplete(){
+  closePopup('pop-complete');
+  if(!_pendingCompleteId) return;
+  var orderId = _pendingCompleteId;
+  var btn     = _pendingCompleteBtn;
+  _pendingCompleteId = null; _pendingCompleteBtn = null;
+
+  // Откатить оплату
+  updateOrderField(orderId,'payStatus','Не оплачен','payMethod','');
+  var pm = document.getElementById('pay-method-'+orderId);
+  if(pm){ pm.style.visibility='hidden'; pm.textContent=''; }
+  var payTog = document.getElementById('pay-tog-'+orderId);
+  if(payTog){
+    payTog.classList.remove('pay-yane');
+    var payChk = payTog.querySelector('input');
+    if(payChk) payChk.checked = false;
+    var payName = document.getElementById('pay-name-'+orderId);
+    if(payName) payName.textContent = '';
+  }
+
+  // Откатить доставку
+  updateOrderField(orderId,'delivery','Нет','','');
+  var delTog = document.getElementById('del-tog-'+orderId);
+  if(delTog){
+    var delChk = delTog.querySelector('input');
+    if(delChk) delChk.checked = false;
+    var track = delTog.querySelector('.emoji-track');
+    if(track) track.style.background = '';
+  }
+
+  // Обновить кнопку Завершить
+  updateCompleteBtn(orderId);
+  toast('Статусы сброшены','ok');
+}
+
 function askComplete(orderId,btn){
   _pendingCompleteId=orderId; _pendingCompleteBtn=btn;
   document.getElementById('pop-complete').classList.remove('hidden');
@@ -2029,6 +2083,21 @@ function openOrderEdit(orderId) {
   var container = document.getElementById('order-edit-items');
   container.innerHTML = '<div style="color:var(--text3);font-size:14px;padding:8px 0">Загрузка…</div>';
   document.getElementById('pop-order-edit').classList.remove('hidden');
+
+  // Показать/скрыть кнопку «Не завершать»
+  var reactivateBtn = document.getElementById('btn-reactivate');
+  if(reactivateBtn){
+    // Найти статус заказа в allEntries
+    var isCompleted = false;
+    allEntries.forEach(function(e){
+      if(e.id === orderId && e.type === 'Заказ'){
+        var s = e.status || '';
+        if(s === 'Завершён' || s === 'Завершен' || s === 'завершен-отмена') isCompleted = true;
+      }
+    });
+    reactivateBtn.style.display = isCompleted ? 'block' : 'none';
+    reactivateBtn.setAttribute('data-oid', orderId);
+  }
 
   sbGet('journal',
     'select=id,goods,goods_id,qty,my_percent&operation_id=eq.'+encodeURIComponent(orderId)+'&type=eq.Заказ')
