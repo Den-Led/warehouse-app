@@ -563,6 +563,19 @@ hr.div{border:none;border-top:1px solid var(--border);margin:14px 0}
 </nav>
 
 <!-- ══ ДЕНЬГИ ════════════════════════════════════════════════ -->
+<!-- ══ ПОПАП: редактирование заказа ══════════════════════════ -->
+<div class="popup-overlay hidden" id="pop-order-edit">
+  <div class="popup">
+    <div class="popup-handle"></div>
+    <div class="popup-title">Редактировать заказ</div>
+    <div id="order-edit-items" style="margin-bottom:14px"></div>
+    <div class="popup-btns">
+      <button class="popup-btn success" onclick="saveOrderEdit()">Сохранить</button>
+      <button class="popup-btn cancel"  onclick="closePopup('pop-order-edit')">Отмена</button>
+    </div>
+  </div>
+</div>
+
 <!-- ══ ПОПАП: редактирование комментария ════════════════════ -->
 <div class="popup-overlay hidden" id="pop-comment">
   <div class="popup">
@@ -1011,8 +1024,8 @@ function renderOrderCard(d){
 
       // ── Строка 3: итого слева + кнопка справа ──
       '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px">'+
-        '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">'+
-          '<div class="op-total-val">'+(total>0?fmt(total)+' ₾':'—')+'</div>'+
+        '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;cursor:pointer" onclick="openOrderEdit(this.dataset.oid)" data-oid="'+oid+'">'+
+          '<div class="op-total-val" style="text-decoration:underline dotted">'+(total>0?fmt(total)+' ₾':'—')+'</div>'+
           (d.totalPercent>0
             ? '<div style="background:rgba(167,139,250,.12);border:1px solid rgba(167,139,250,.3);border-radius:8px;padding:3px 10px">'+
                 '<div style="font-size:14px;font-weight:700;color:var(--violet)">'+fmt(d.totalPercent)+' ₾</div>'+
@@ -1869,6 +1882,73 @@ function saveClientIfNew(name, tgUsername) {
   } catch(e) {
     console.error('saveClientIfNew error:', e);
   }
+}
+
+// ══════════════════════════════════════════════════════════════
+// РЕДАКТИРОВАНИЕ ЗАКАЗА (товары + маржа)
+// ══════════════════════════════════════════════════════════════
+var _editOrderId = null;
+var _editOrderRows = []; // текущие строки заказа из journal
+
+function openOrderEdit(orderId) {
+  _editOrderId = orderId;
+  var container = document.getElementById('order-edit-items');
+  container.innerHTML = '<div style="color:var(--text3);font-size:14px;padding:8px 0">Загрузка…</div>';
+  document.getElementById('pop-order-edit').classList.remove('hidden');
+
+  sbGet('journal',
+    'select=id,goods,qty,my_percent&operation_id=eq.'+encodeURIComponent(orderId)+'&type=eq.Заказ')
+    .then(function(rows){
+      _editOrderRows = rows || [];
+      container.innerHTML = _editOrderRows.map(function(r, i){
+        return '<div style="margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid var(--border)">' +
+          '<div style="font-size:13px;font-weight:600;color:var(--text2);margin-bottom:8px">'+esc(r.goods)+'</div>'+
+          '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">'+
+            '<div>'+
+              '<label style="font-size:11px;color:var(--text3);display:block;margin-bottom:4px">Количество</label>'+
+              '<input type="number" id="edit-qty-'+i+'" value="'+r.qty+'" min="1" step="1" '+
+                'style="width:100%;background:var(--surf2);border:1.5px solid var(--border);border-radius:var(--rs);color:var(--text);font-family:Manrope,sans-serif;font-size:16px;padding:10px 12px;outline:none">'+
+            '</div>'+
+            '<div>'+
+              '<label style="font-size:11px;color:var(--text3);display:block;margin-bottom:4px">Маржа (₾)</label>'+
+              '<input type="number" id="edit-margin-'+i+'" value="'+r.my_percent+'" min="0" step="0.01" '+
+                'style="width:100%;background:var(--surf2);border:1.5px solid var(--border);border-radius:var(--rs);color:var(--text);font-family:Manrope,sans-serif;font-size:16px;padding:10px 12px;outline:none">'+
+            '</div>'+
+          '</div>'+
+        '</div>';
+      }).join('');
+    })
+    .catch(function(){ container.innerHTML='<div style="color:var(--coral)">Ошибка загрузки</div>'; });
+}
+
+function saveOrderEdit() {
+  if(!_editOrderId || !_editOrderRows.length) return;
+
+  var btn = document.querySelector('#pop-order-edit .popup-btn.success');
+  if(btn){ btn.disabled=true; btn.textContent='…'; }
+
+  // Обновляем каждую строку последовательно
+  var chain = Promise.resolve();
+  _editOrderRows.forEach(function(r, i){
+    chain = chain.then(function(){
+      var newQty    = parseFloat(document.getElementById('edit-qty-'+i).value)    || r.qty;
+      var newMargin = parseFloat(document.getElementById('edit-margin-'+i).value) || 0;
+      return sbPatch('journal', 'id=eq.'+r.id, {
+        qty:        newQty,
+        my_percent: newMargin
+      });
+    });
+  });
+
+  chain.then(function(){
+    if(btn){ btn.disabled=false; btn.textContent='Сохранить'; }
+    closePopup('pop-order-edit');
+    toast('Заказ обновлён','ok');
+    openOrders();
+  }).catch(function(){
+    if(btn){ btn.disabled=false; btn.textContent='Сохранить'; }
+    toast('Ошибка сохранения','err');
+  });
 }
 
 function openTg(username) {
