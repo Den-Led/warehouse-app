@@ -1887,56 +1887,156 @@ function saveClientIfNew(name, tgUsername) {
 // ══════════════════════════════════════════════════════════════
 // РЕДАКТИРОВАНИЕ ЗАКАЗА (товары + маржа)
 // ══════════════════════════════════════════════════════════════
-var _editOrderId = null;
-var _editOrderRows = []; // текущие строки заказа из journal
+var _editOrderId  = null;
+var _editOrderRows = [];
+var _editNewRows   = []; // новые позиции добавленные в попапе
+
+function buildStockOptsEdit() {
+  var s = '<option value="">— выберите товар —</option>';
+  stockItems.forEach(function(it){
+    s += '<option value="'+esc(it.id)+'" data-name="'+esc(it.name)+'" data-pr="'+it.price+'" data-av="'+it.available+'">'+
+      esc(it.name)+' ('+it.available+' шт.)'+(it.price>0?' — '+fmt(it.price)+' ₾':'')+
+    '</option>';
+  });
+  return s;
+}
+
+function fieldStyle() {
+  return 'width:100%;background:var(--surf2);border:1.5px solid var(--border);border-radius:var(--rs);' +
+    'color:var(--text);font-family:Manrope,sans-serif;font-size:15px;padding:9px 12px;outline:none';
+}
+
+function renderEditRow(id, goodsName, qty, margin, isNew) {
+  var selectOpts = buildStockOptsEdit();
+  return '<div id="edit-row-'+id+'" style="margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid var(--border)">'+
+    (isNew ? '<div style="font-size:10px;font-weight:700;color:var(--violet);letter-spacing:.5px;text-transform:uppercase;margin-bottom:6px">НОВАЯ ПОЗИЦИЯ</div>' : '')+
+    // Выбор товара
+    '<select id="edit-goods-'+id+'" style="'+fieldStyle()+';margin-bottom:8px;padding-right:36px;appearance:none;'+
+      'background-image:url(\'data:image/svg+xml,%3Csvg xmlns=\\\'http://www.w3.org/2000/svg\\\' width=\\\'12\\\' height=\\\'8\\\' viewBox=\\\'0 0 12 8\\\'%3E%3Cpath d=\\\'M1 1l5 5 5-5\\\' stroke=\\\'%238892aa\\\' stroke-width=\\\'1.5\\\' fill=\\\'none\\\' stroke-linecap=\\\'round\\\'/%3E%3C/svg%3E\');'+
+      'background-repeat:no-repeat;background-position:right 12px center">'+
+      selectOpts+
+    '</select>'+
+    '<div style="display:grid;grid-template-columns:1fr 1fr 36px;gap:8px;align-items:end">'+
+      '<div>'+
+        '<label style="font-size:11px;color:var(--text3);display:block;margin-bottom:4px">Количество</label>'+
+        '<input type="number" id="edit-qty-'+id+'" value="'+(qty||1)+'" min="1" step="1" style="'+fieldStyle()+'">'+
+      '</div>'+
+      '<div>'+
+        '<label style="font-size:11px;color:var(--text3);display:block;margin-bottom:4px">Маржа (₾)</label>'+
+        '<input type="number" id="edit-margin-'+id+'" value="'+(margin||0)+'" min="0" step="0.01" style="'+fieldStyle()+'">'+
+      '</div>'+
+      '<button onclick="removeEditRow(\''+id+'\')" style="height:38px;background:transparent;border:1.5px solid var(--border);border-radius:var(--rs);color:var(--text3);font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;align-self:end">×</button>'+
+    '</div>'+
+  '</div>';
+}
+
+function removeEditRow(id) {
+  var el = document.getElementById('edit-row-'+id);
+  if(el) el.remove();
+  // Удалить из массивов
+  _editOrderRows  = _editOrderRows.filter(function(r){ return String(r.id) !== String(id); });
+  _editNewRows    = _editNewRows.filter(function(r){ return String(r.id) !== String(id); });
+}
+
+function addEditNewRow() {
+  var newId = 'new-' + Date.now();
+  _editNewRows.push({id: newId});
+  var container = document.getElementById('order-edit-items');
+  var div = document.createElement('div');
+  div.innerHTML = renderEditRow(newId, '', 1, 0, true);
+  // Вставить перед кнопкой «+ Добавить»
+  var addBtn = document.getElementById('edit-add-btn');
+  container.insertBefore(div.firstChild, addBtn);
+}
 
 function openOrderEdit(orderId) {
-  _editOrderId = orderId;
+  _editOrderId  = orderId;
+  _editNewRows  = [];
   var container = document.getElementById('order-edit-items');
   container.innerHTML = '<div style="color:var(--text3);font-size:14px;padding:8px 0">Загрузка…</div>';
   document.getElementById('pop-order-edit').classList.remove('hidden');
 
   sbGet('journal',
-    'select=id,goods,qty,my_percent&operation_id=eq.'+encodeURIComponent(orderId)+'&type=eq.Заказ')
+    'select=id,goods,goods_id,qty,my_percent&operation_id=eq.'+encodeURIComponent(orderId)+'&type=eq.Заказ')
     .then(function(rows){
       _editOrderRows = rows || [];
-      container.innerHTML = _editOrderRows.map(function(r, i){
-        return '<div style="margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid var(--border)">' +
-          '<div style="font-size:13px;font-weight:600;color:var(--text2);margin-bottom:8px">'+esc(r.goods)+'</div>'+
-          '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">'+
-            '<div>'+
-              '<label style="font-size:11px;color:var(--text3);display:block;margin-bottom:4px">Количество</label>'+
-              '<input type="number" id="edit-qty-'+i+'" value="'+r.qty+'" min="1" step="1" '+
-                'style="width:100%;background:var(--surf2);border:1.5px solid var(--border);border-radius:var(--rs);color:var(--text);font-family:Manrope,sans-serif;font-size:16px;padding:10px 12px;outline:none">'+
-            '</div>'+
-            '<div>'+
-              '<label style="font-size:11px;color:var(--text3);display:block;margin-bottom:4px">Маржа (₾)</label>'+
-              '<input type="number" id="edit-margin-'+i+'" value="'+r.my_percent+'" min="0" step="0.01" '+
-                'style="width:100%;background:var(--surf2);border:1.5px solid var(--border);border-radius:var(--rs);color:var(--text);font-family:Manrope,sans-serif;font-size:16px;padding:10px 12px;outline:none">'+
-            '</div>'+
-          '</div>'+
-        '</div>';
+
+      var html = _editOrderRows.map(function(r){
+        return renderEditRow(r.id, r.goods, r.qty, r.my_percent, false);
       }).join('');
+
+      // Кнопка добавить новую позицию
+      html += '<button id="edit-add-btn" onclick="addEditNewRow()" style="'+
+        'width:100%;background:transparent;border:2px dashed var(--border2);border-radius:var(--rs);'+
+        'color:var(--text2);font-family:Manrope,sans-serif;font-size:14px;font-weight:600;'+
+        'padding:12px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;margin-top:4px">'+
+        '+ Добавить позицию</button>';
+
+      container.innerHTML = html;
+
+      // Подставить текущий товар в select
+      _editOrderRows.forEach(function(r){
+        var sel = document.getElementById('edit-goods-'+r.id);
+        if(!sel) return;
+        // Ищем опцию по имени товара
+        for(var i=0; i<sel.options.length; i++){
+          var opt = sel.options[i];
+          if(opt.getAttribute('data-name') === r.goods || opt.value === (r.goods_id||'')){
+            sel.selectedIndex = i; break;
+          }
+        }
+      });
     })
     .catch(function(){ container.innerHTML='<div style="color:var(--coral)">Ошибка загрузки</div>'; });
 }
 
 function saveOrderEdit() {
-  if(!_editOrderId || !_editOrderRows.length) return;
+  if(!_editOrderId) return;
 
   var btn = document.querySelector('#pop-order-edit .popup-btn.success');
   if(btn){ btn.disabled=true; btn.textContent='…'; }
 
-  // Обновляем каждую строку последовательно
   var chain = Promise.resolve();
-  _editOrderRows.forEach(function(r, i){
+
+  // Обновляем существующие строки
+  _editOrderRows.forEach(function(r){
     chain = chain.then(function(){
-      var newQty    = parseFloat(document.getElementById('edit-qty-'+i).value)    || r.qty;
-      var newMargin = parseFloat(document.getElementById('edit-margin-'+i).value) || 0;
-      return sbPatch('journal', 'id=eq.'+r.id, {
-        qty:        newQty,
-        my_percent: newMargin
+      var sel       = document.getElementById('edit-goods-'+r.id);
+      var qtyEl     = document.getElementById('edit-qty-'+r.id);
+      var marginEl  = document.getElementById('edit-margin-'+r.id);
+      if(!sel || !qtyEl) return; // строка удалена
+      var opt       = sel.options[sel.selectedIndex];
+      var newGoods  = opt.getAttribute('data-name') || r.goods;
+      var newGoodsId= sel.value || r.goods_id;
+      var newQty    = parseFloat(qtyEl.value)    || r.qty;
+      var newMargin = parseFloat(marginEl.value) || 0;
+      return sbPatch('journal','id=eq.'+r.id,{
+        goods: newGoods, goods_id: newGoodsId,
+        qty: newQty, my_percent: newMargin
       });
+    });
+  });
+
+  // Добавляем новые строки
+  _editNewRows.forEach(function(r){
+    chain = chain.then(function(){
+      var sel      = document.getElementById('edit-goods-'+r.id);
+      var qtyEl    = document.getElementById('edit-qty-'+r.id);
+      var marginEl = document.getElementById('edit-margin-'+r.id);
+      if(!sel || !sel.value || !qtyEl) return;
+      var opt      = sel.options[sel.selectedIndex];
+      var goodsName = opt.getAttribute('data-name') || '';
+      var goodsId   = sel.value;
+      var qty       = parseFloat(qtyEl.value)    || 1;
+      var margin    = parseFloat(marginEl.value) || 0;
+      var price     = parseFloat(opt.getAttribute('data-pr')) || 0;
+      if(!goodsName) return;
+      return sbPost('journal',[{
+        type:'Заказ', operation_id:_editOrderId,
+        goods:goodsName, goods_id:goodsId,
+        qty:qty, price_per_unit:price, my_percent:margin,
+        status:'Активен'
+      }]);
     });
   });
 
