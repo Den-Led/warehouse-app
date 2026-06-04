@@ -2141,7 +2141,7 @@ function loadMoneyList() {
           moneyFlow = '<span style="color:var(--amber)">+'+fmt(g.amount)+'₾ → Ден→Яне</span>';
         } else if(g.type==='Поездка'){
           var tripTotal=(g.amount||0)+(g.expeditor||0);
-          if(tripTotal>0) moneyFlow='<span style="color:var(--coral)">-'+fmt(tripTotal)+'₾ → ЗП</span>';
+          if(tripTotal>0) moneyFlow='<span style="color:var(--green)">'+fmt(tripTotal)+'₾ → ЗП</span>';
         }
 
         // Сборка строки
