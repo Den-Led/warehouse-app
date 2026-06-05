@@ -489,16 +489,19 @@ hr.div{border:none;border-top:1px solid var(--border);margin:14px 0}
     </div>
 
     <!-- Кнопка Остатки -->
-    <button onclick="copyStockToClipboard()" style="
-      width:100%;background:var(--surf);border:1.5px solid var(--border);
-      border-radius:var(--r);padding:16px;font-family:'Manrope',sans-serif;
-      font-size:16px;font-weight:600;color:var(--text2);cursor:pointer;
-      display:flex;align-items:center;justify-content:space-between;
-      margin-bottom:14px;
-    ">
-      <span>📋 Остатки товара</span>
-      <span style="font-size:13px;color:var(--text3)">копировать</span>
-    </button>
+    <!-- Блок остатков товара -->
+    <div class="card" style="margin-bottom:14px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+        <div class="ct" style="margin-bottom:0">Остатки товара</div>
+        <button onclick="copyStockToClipboard()" style="
+          background:transparent;border:1.5px solid var(--border);border-radius:var(--rs);
+          padding:6px 12px;font-family:'Manrope',sans-serif;font-size:13px;font-weight:600;
+          color:var(--text2);cursor:pointer">📋 копировать</button>
+      </div>
+      <div id="stock-table-list">
+        <div style="color:var(--text3);font-size:13px">Загрузка…</div>
+      </div>
+    </div>
 
     <!-- Кнопка Депозит -->
     <button onclick="sendDepositToUser()" style="
@@ -1059,7 +1062,9 @@ function renderOrderCard(d){
           : isDone
             ? '<div class="op-status-done">✓ Завершён</div>'
             : '<div style="display:flex;gap:6px;align-items:center">'+
-                (!deliv ? '<button style="background:transparent;border:1.5px solid var(--coral);border-radius:var(--rs);color:var(--coral);font-size:16px;padding:7px 10px;cursor:pointer;line-height:1" onclick="askReturn(this.dataset.oid,this)" data-oid="'+oid+'">↩</button>' : '')+
+                ((!paid && !deliv)
+                  ? '<button style="background:transparent;border:1.5px solid var(--coral);border-radius:var(--rs);color:var(--coral);font-size:16px;padding:7px 10px;cursor:pointer;line-height:1" onclick="askReturn(this.dataset.oid,this)" data-oid="'+oid+'">↩</button>'
+                  : '<button style="background:transparent;border:1.5px solid var(--border2);border-radius:var(--rs);color:var(--text3);font-size:16px;padding:7px 10px;cursor:not-allowed;line-height:1;opacity:.4" disabled>↩</button>')+
                 '<button class="btn-complete" id="bcmp-'+oid+'"'+
                 ' onclick="askComplete(this.dataset.oid,this)" data-oid="'+oid+'"'+
                 (paid && deliv ? '' : ' disabled style="opacity:.35;cursor:not-allowed;border-color:var(--border2);color:var(--text3)"')+
@@ -1805,6 +1810,7 @@ function openMoney() {
     new Date().toLocaleDateString('ru-RU',{day:'numeric',month:'long'});
   loadDeposit();
   loadMoneyList();
+  loadStockTable();
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -1913,36 +1919,83 @@ function sendDepositToUser() {
     .catch(function(){ toast('Ошибка загрузки депозита','err'); });
 }
 
+function loadStockTable() {
+  var container = document.getElementById('stock-table-list');
+  if(!container) return;
+
+  // Грузим stock + активные заказы параллельно
+  Promise.all([
+    sbGet('stock', 'select=id,name,available,reserved&order=name.asc'),
+    sbGet('journal', 'select=goods,qty,customer,tg_username&type=eq.Заказ&status=eq.Активен')
+  ]).then(function(results){
+    var stocks  = results[0] || [];
+    var orders  = results[1] || [];
+
+    // Строим map: goods_name → [tg_username клиентов]
+    var reserveMap = {};
+    orders.forEach(function(o){
+      var key = (o.goods||'').trim();
+      if(!reserveMap[key]) reserveMap[key] = [];
+      var who = o.tg_username ? '@'+o.tg_username : (o.customer||'');
+      if(who && reserveMap[key].indexOf(who) === -1) reserveMap[key].push(who);
+    });
+
+    if(!stocks.length){ container.innerHTML='<div style="color:var(--text3);font-size:13px">Склад пуст</div>'; return; }
+
+    container.innerHTML = stocks.map(function(s){
+      var avail = Number(s.available)||0;
+      var res   = Number(s.reserved)||0;
+      var who   = reserveMap[s.name] || [];
+      var whoStr = who.length ? ' <span style="color:var(--accent);font-size:11px">('+who.join(', ')+')</span>' : '';
+      return '<div style="display:grid;grid-template-columns:1fr auto auto;gap:6px;align-items:center;'+
+        'padding:7px 0;border-bottom:1px solid var(--border);font-size:13px">'+
+        '<span style="font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(s.name)+'</span>'+
+        '<span style="color:var(--green);white-space:nowrap;font-weight:600">'+avail+' шт</span>'+
+        '<span style="color:var(--amber);white-space:nowrap;font-size:12px">'+
+          (res>0 ? 'рез: '+res+whoStr : '—')+
+        '</span>'+
+      '</div>';
+    }).join('');
+  }).catch(function(){ container.innerHTML='<div style="color:var(--coral);font-size:13px">Ошибка</div>'; });
+}
+
 function copyStockToClipboard() {
-  sbGet('stock', 'select=name,available&order=name.asc')
-    .then(function(rows){
-      if(!rows || !rows.length){ toast('Склад пуст','err'); return; }
-      var lines = rows
-        .filter(function(r){ return (Number(r.available)||0) > 0; })
-        .map(function(r){ return '• ' + r.name + ' — ' + r.available + ' шт'; });
-      if(!lines.length){ toast('Нет товаров в наличии','err'); return; }
+  Promise.all([
+    sbGet('stock', 'select=name,available,reserved&order=name.asc'),
+    sbGet('journal', 'select=goods,customer,tg_username&type=eq.Заказ&status=eq.Активен')
+  ]).then(function(results){
+    var stocks = results[0] || [];
+    var orders = results[1] || [];
 
-      var text = lines.join('\n');
+    var reserveMap = {};
+    orders.forEach(function(o){
+      var key = (o.goods||'').trim();
+      if(!reserveMap[key]) reserveMap[key] = [];
+      var who = o.tg_username ? '@'+o.tg_username : (o.customer||'');
+      if(who && reserveMap[key].indexOf(who) === -1) reserveMap[key].push(who);
+    });
 
-      // Отправить в Telegram пользователю @violoncelle11
-      var url = 'tg://msg?to=violoncelle11&text=' + encodeURIComponent(text);
-      try {
-        if(tg && tg.openTelegramLink){
-          tg.openTelegramLink('https://t.me/violoncelle11?text=' + encodeURIComponent(text));
-          return;
-        }
-      } catch(e){}
+    if(!stocks.length){ toast('Склад пуст','err'); return; }
 
-      // Fallback — просто копируем
-      if(navigator.clipboard && navigator.clipboard.writeText){
-        navigator.clipboard.writeText(text)
-          .then(function(){ toast('Скопировано (откройте чат вручную)','ok'); })
-          .catch(function(){ fallbackCopy(text); });
-      } else {
-        fallbackCopy(text);
+    var lines = stocks.map(function(s){
+      var avail = Number(s.available)||0;
+      var res   = Number(s.reserved)||0;
+      var who   = reserveMap[s.name] || [];
+      var line  = '• '+s.name+' — '+avail+' шт';
+      if(res > 0) line += ' | рез: '+res+' шт'+(who.length?' ('+who.join(', ')+')':'');
+      return line;
+    });
+
+    var text = lines.join('\n');
+    try {
+      if(tg && tg.openTelegramLink){
+        tg.openTelegramLink('https://t.me/violoncelle11?text='+encodeURIComponent(text));
+        return;
       }
-    })
-    .catch(function(){ toast('Ошибка загрузки склада','err'); });
+    } catch(e){}
+    fallbackCopy(text);
+    toast('Скопировано','ok');
+  }).catch(function(){ toast('Ошибка','err'); });
 }
 
 // Fallback для старых браузеров и Telegram WebView
