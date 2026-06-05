@@ -1362,22 +1362,54 @@ function reactivateOrder(){
   var orderId = btn ? btn.getAttribute('data-oid') : null;
   if(!orderId) return;
 
-  // Найти статус и доставку заказа
-  var orderStatus = '';
+  // Найти статус, доставку, оплату и маржу заказа
+  var orderStatus   = '';
   var orderDelivery = '';
+  var orderPayMethod = '';
+  var orderTotal    = 0;
+  var orderMargin   = 0;
+
   allEntries.forEach(function(e){
     if(e.id === orderId && e.type === 'Заказ'){
-      orderStatus   = e.status   || '';
-      orderDelivery = e.delivery || '';
+      orderStatus    = e.status    || '';
+      orderDelivery  = e.delivery  || '';
+      orderPayMethod = e.payMethod || '';
     }
   });
 
-  // Получить строки заказа из journal
-  sbGet('journal','select=goods,goods_id,qty&operation_id=eq.'+encodeURIComponent(orderId)+'&type=eq.Заказ')
+  // Получить строки заказа — для суммы, маржи и движения товара
+  sbGet('journal',
+    'select=goods,goods_id,qty,price_per_unit,my_percent&operation_id=eq.'+encodeURIComponent(orderId)+'&type=eq.Заказ')
     .then(function(rows){
       if(!rows||!rows.length) return Promise.resolve();
 
-      // Последовательно двигаем товар обратно в reserved
+      // Считаем итоговую сумму и маржу
+      rows.forEach(function(r){
+        orderTotal  += (Number(r.qty)||0) * (Number(r.price_per_unit)||0);
+        orderMargin += Number(r.my_percent)||0;
+      });
+
+      // ── Откат денег ─────────────────────────────────────────
+      var isYane = orderPayMethod.indexOf('Яне')  !== -1;
+      var isDen  = orderPayMethod.indexOf('Дену') !== -1;
+      var isCompleted = orderStatus==='Завершён'||orderStatus==='Завершен';
+
+      // Вариант 1: Завершён + Яне + Доставка=Да
+      // → client_yane - сумма, zp - маржа
+      if(isCompleted && isYane){
+        if(orderTotal  > 0) moneyAdd('client_yane', -orderTotal);
+        if(orderMargin > 0) moneyAdd('zp',          -orderMargin);
+      }
+      // Вариант 2: Завершён + Дену + Доставка=Да
+      // → client_den - сумма, zp - маржа
+      else if(isCompleted && isDen){
+        if(orderTotal  > 0) moneyAdd('client_den', -orderTotal);
+        if(orderMargin > 0) moneyAdd('zp',         -orderMargin);
+      }
+      // Вариант 6: завершен-отмена (оплата=нет, доставка=нет)
+      // → деньги не трогаем, товар: available → reserved (ниже в движении товара)
+
+      // ── Движение товара ─────────────────────────────────────
       return rows.reduce(function(chain, row){
         return chain.then(function(){
           var stockQuery = row.goods_id
@@ -1388,15 +1420,14 @@ function reactivateOrder(){
             var s   = items[0];
             var qty = Number(row.qty)||0;
             var updates = {};
-
-            if(orderStatus==='Завершён' || orderStatus==='Завершен'){
-              // Товар был в sold → вернуть в reserved
+            if(isCompleted){
+              // Завершён: доставка=Да → товар был в sold → вернуть в reserved
               updates = {
                 sold:     Math.max(0,(Number(s.sold)    ||0) - qty),
                 reserved:           (Number(s.reserved) ||0) + qty
               };
             } else {
-              // завершен-отмена — товар был в available → вернуть в reserved
+              // завершен-отмена: доставка=Нет → товар был в available → вернуть в reserved
               updates = {
                 available: Math.max(0,(Number(s.available)||0) - qty),
                 reserved:            (Number(s.reserved) ||0) + qty
@@ -1408,7 +1439,7 @@ function reactivateOrder(){
       }, Promise.resolve());
     })
     .then(function(){
-      // Сбросить статус доставки и обновить статус заказа
+      // Сбросить статус и доставку
       return sbPatch('journal',
         'operation_id=eq.'+encodeURIComponent(orderId)+'&type=eq.Заказ',
         {status:'Активен', delivery:'Нет'});
