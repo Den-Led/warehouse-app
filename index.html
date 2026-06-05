@@ -1056,7 +1056,7 @@ function renderOrderCard(d){
           : isDone
             ? '<div class="op-status-done">✓ Завершён</div>'
             : '<div style="display:flex;gap:6px;align-items:center">'+
-                '<button style="background:transparent;border:1.5px solid var(--coral);border-radius:var(--rs);color:var(--coral);font-size:16px;padding:7px 10px;cursor:pointer;line-height:1" onclick="askReturn(this.dataset.oid,this)" data-oid="'+oid+'">↩</button>'+
+                (!deliv ? '<button style="background:transparent;border:1.5px solid var(--coral);border-radius:var(--rs);color:var(--coral);font-size:16px;padding:7px 10px;cursor:pointer;line-height:1" onclick="askReturn(this.dataset.oid,this)" data-oid="'+oid+'">↩</button>' : '')+
                 '<button class="btn-complete" id="bcmp-'+oid+'"'+
                 ' onclick="askComplete(this.dataset.oid,this)" data-oid="'+oid+'"'+
                 (paid && deliv ? '' : ' disabled style="opacity:.35;cursor:not-allowed;border-color:var(--border2);color:var(--text3)"')+
@@ -1361,16 +1361,68 @@ function reactivateOrder(){
   var btn = document.getElementById('btn-reactivate');
   var orderId = btn ? btn.getAttribute('data-oid') : null;
   if(!orderId) return;
-  sbPatch('journal',
-    'operation_id=eq.'+encodeURIComponent(orderId)+'&type=eq.Заказ',
-    {status:'Активен'})
+
+  // Найти статус и доставку заказа
+  var orderStatus = '';
+  var orderDelivery = '';
+  allEntries.forEach(function(e){
+    if(e.id === orderId && e.type === 'Заказ'){
+      orderStatus   = e.status   || '';
+      orderDelivery = e.delivery || '';
+    }
+  });
+
+  // Получить строки заказа из journal
+  sbGet('journal','select=goods,goods_id,qty&operation_id=eq.'+encodeURIComponent(orderId)+'&type=eq.Заказ')
+    .then(function(rows){
+      if(!rows||!rows.length) return Promise.resolve();
+
+      // Последовательно двигаем товар обратно в reserved
+      return rows.reduce(function(chain, row){
+        return chain.then(function(){
+          var stockQuery = row.goods_id
+            ? 'select=*&id=eq.'+encodeURIComponent(row.goods_id)
+            : 'select=*&name=ilike.'+encodeURIComponent(row.goods);
+          return sbGet('stock', stockQuery).then(function(items){
+            if(!items||!items[0]) return;
+            var s   = items[0];
+            var qty = Number(row.qty)||0;
+            var updates = {};
+
+            if(orderStatus==='Завершён' || orderStatus==='Завершен'){
+              // Товар был в sold → вернуть в reserved
+              updates = {
+                sold:     Math.max(0,(Number(s.sold)    ||0) - qty),
+                reserved:           (Number(s.reserved) ||0) + qty
+              };
+            } else {
+              // завершен-отмена — товар был в available → вернуть в reserved
+              updates = {
+                available: Math.max(0,(Number(s.available)||0) - qty),
+                reserved:            (Number(s.reserved) ||0) + qty
+              };
+            }
+            return sbPatch('stock','id=eq.'+encodeURIComponent(s.id), updates);
+          });
+        });
+      }, Promise.resolve());
+    })
     .then(function(){
-      // Обновить локально
+      // Сбросить статус доставки и обновить статус заказа
+      return sbPatch('journal',
+        'operation_id=eq.'+encodeURIComponent(orderId)+'&type=eq.Заказ',
+        {status:'Активен', delivery:'Нет'});
+    })
+    .then(function(){
       allEntries.forEach(function(e){
-        if(e.id === orderId && e.type === 'Заказ') e.status = 'Активен';
+        if(e.id === orderId && e.type === 'Заказ'){
+          e.status = 'Активен';
+          e.delivery = 'Нет';
+        }
       });
       closePopup('pop-order-edit');
       toast('Заказ снова активен','ok');
+      loadStock();
       openOrders();
     })
     .catch(function(){ toast('Ошибка','err'); });
@@ -1420,6 +1472,18 @@ function doReturnOrder(){
   closePopup('pop-complete');
   if(!_pendingCompleteId) return;
   var orderId=_pendingCompleteId, btn=_pendingCompleteBtn;
+
+  // Проверяем — если доставка=Да, возврат запрещён
+  var orderDelivery = '';
+  allEntries.forEach(function(e){
+    if(e.id === orderId && e.type === 'Заказ') orderDelivery = e.delivery || '';
+  });
+  if(orderDelivery === 'Да'){
+    toast('Нельзя — товар уже доставлен клиенту','err');
+    _pendingCompleteId=null; _pendingCompleteBtn=null;
+    return;
+  }
+
   if(btn){btn.disabled=true;btn.textContent='…';}
   _pendingCompleteId=null; _pendingCompleteBtn=null;
 
