@@ -980,11 +980,13 @@ function renderOrderCard(d){
   }).join('');
 
   // Эмодзи-тоггл оплаты (голубой если Яна, зелёный если Ден)
-  var isYane = paid && d.payMethod && d.payMethod.indexOf('Яне') !== -1;
+  var isYane   = paid && d.payMethod && d.payMethod.indexOf('Яне') !== -1;
+  var isLocked = isDone || isReturned; // завершённые — тогглы заблокированы
   var payToggle =
-    '<label class="emoji-toggle'+(isYane ? ' pay-yane' : '')+'" id="pay-tog-'+oid+'">'+
+    '<label class="emoji-toggle'+(isYane ? ' pay-yane' : '')+'" id="pay-tog-'+oid+'"'+
+      (isLocked ? ' style="opacity:.6;pointer-events:none"' : '')+'>'+
       '<input type="checkbox" '+(paid?'checked':'')+
-      ' onchange="togglePay(this.dataset.oid,this)" data-oid="'+oid+'">'+
+      (isLocked ? ' disabled' : ' onchange="togglePay(this.dataset.oid,this)" data-oid="'+oid+'"')+'>'+
       '<span class="emoji-track">'+
         '<span class="emoji-knob">💸</span>'+
         '<span class="emoji-name" id="pay-name-'+oid+'">'+(payName||'')+'</span>'+
@@ -993,9 +995,10 @@ function renderOrderCard(d){
 
   // Эмодзи-тоггл доставки
   var delToggle =
-    '<label class="emoji-toggle" id="del-tog-'+oid+'">'+
+    '<label class="emoji-toggle" id="del-tog-'+oid+'"'+
+      (isLocked ? ' style="opacity:.6;pointer-events:none"' : '')+'>'+
       '<input type="checkbox" '+(deliv?'checked':'')+
-      ' onchange="toggleDelivery(this.dataset.oid,this)" data-oid="'+oid+'">'+
+      (isLocked ? ' disabled' : ' onchange="toggleDelivery(this.dataset.oid,this)" data-oid="'+oid+'"')+'>'+
       '<span class="emoji-track">'+
         '<span class="emoji-knob">🚚</span>'+
       '</span>'+
@@ -1362,98 +1365,17 @@ function reactivateOrder(){
   var orderId = btn ? btn.getAttribute('data-oid') : null;
   if(!orderId) return;
 
-  // Найти статус, доставку, оплату и маржу заказа
-  var orderStatus   = '';
-  var orderDelivery = '';
-  var orderPayMethod = '';
-  var orderTotal    = 0;
-  var orderMargin   = 0;
-
-  allEntries.forEach(function(e){
-    if(e.id === orderId && e.type === 'Заказ'){
-      orderStatus    = e.status    || '';
-      orderDelivery  = e.delivery  || '';
-      orderPayMethod = e.payMethod || '';
-    }
-  });
-
-  // Получить строки заказа — для суммы, маржи и движения товара
-  sbGet('journal',
-    'select=goods,goods_id,qty,price_per_unit,my_percent&operation_id=eq.'+encodeURIComponent(orderId)+'&type=eq.Заказ')
-    .then(function(rows){
-      if(!rows||!rows.length) return Promise.resolve();
-
-      // Считаем итоговую сумму и маржу
-      rows.forEach(function(r){
-        orderTotal  += (Number(r.qty)||0) * (Number(r.price_per_unit)||0);
-        orderMargin += Number(r.my_percent)||0;
-      });
-
-      // ── Откат денег ─────────────────────────────────────────
-      var isYane = orderPayMethod.indexOf('Яне')  !== -1;
-      var isDen  = orderPayMethod.indexOf('Дену') !== -1;
-      var isCompleted = orderStatus==='Завершён'||orderStatus==='Завершен';
-
-      // Вариант 1: Завершён + Яне + Доставка=Да
-      // → client_yane - сумма, zp - маржа
-      if(isCompleted && isYane){
-        if(orderTotal  > 0) moneyAdd('client_yane', -orderTotal);
-        if(orderMargin > 0) moneyAdd('zp',          -orderMargin);
-      }
-      // Вариант 2: Завершён + Дену + Доставка=Да
-      // → client_den - сумма, zp - маржа
-      else if(isCompleted && isDen){
-        if(orderTotal  > 0) moneyAdd('client_den', -orderTotal);
-        if(orderMargin > 0) moneyAdd('zp',         -orderMargin);
-      }
-      // Вариант 6: завершен-отмена (оплата=нет, доставка=нет)
-      // → деньги не трогаем, товар: available → reserved (ниже в движении товара)
-
-      // ── Движение товара ─────────────────────────────────────
-      return rows.reduce(function(chain, row){
-        return chain.then(function(){
-          var stockQuery = row.goods_id
-            ? 'select=*&id=eq.'+encodeURIComponent(row.goods_id)
-            : 'select=*&name=ilike.'+encodeURIComponent(row.goods);
-          return sbGet('stock', stockQuery).then(function(items){
-            if(!items||!items[0]) return;
-            var s   = items[0];
-            var qty = Number(row.qty)||0;
-            var updates = {};
-            if(isCompleted){
-              // Завершён: доставка=Да → товар был в sold → вернуть в reserved
-              updates = {
-                sold:     Math.max(0,(Number(s.sold)    ||0) - qty),
-                reserved:           (Number(s.reserved) ||0) + qty
-              };
-            } else {
-              // завершен-отмена: доставка=Нет → товар был в available → вернуть в reserved
-              updates = {
-                available: Math.max(0,(Number(s.available)||0) - qty),
-                reserved:            (Number(s.reserved) ||0) + qty
-              };
-            }
-            return sbPatch('stock','id=eq.'+encodeURIComponent(s.id), updates);
-          });
-        });
-      }, Promise.resolve());
-    })
-    .then(function(){
-      // Сбросить статус и доставку
-      return sbPatch('journal',
-        'operation_id=eq.'+encodeURIComponent(orderId)+'&type=eq.Заказ',
-        {status:'Активен', delivery:'Нет'});
-    })
+  // Просто меняем статус на Активен — тогглы и деньги не трогаем
+  // Откат будет происходить когда пользователь вручную выключит тогглы
+  sbPatch('journal',
+    'operation_id=eq.'+encodeURIComponent(orderId)+'&type=eq.Заказ',
+    {status:'Активен'})
     .then(function(){
       allEntries.forEach(function(e){
-        if(e.id === orderId && e.type === 'Заказ'){
-          e.status = 'Активен';
-          e.delivery = 'Нет';
-        }
+        if(e.id === orderId && e.type === 'Заказ') e.status = 'Активен';
       });
       closePopup('pop-order-edit');
       toast('Заказ снова активен','ok');
-      loadStock();
       openOrders();
     })
     .catch(function(){ toast('Ошибка','err'); });
