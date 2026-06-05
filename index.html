@@ -532,7 +532,7 @@ hr.div{border:none;border-top:1px solid var(--border);margin:14px 0}
           <button onclick="event.stopPropagation();copyStockToClipboard()" style="
             background:transparent;border:1.5px solid var(--border);border-radius:var(--rs);
             padding:6px 12px;font-family:'Manrope',sans-serif;font-size:13px;font-weight:600;
-            color:var(--text2);cursor:pointer">📋</button>
+            color:var(--text2);cursor:pointer;white-space:nowrap">📋 отправить</button>
           <span id="stock-table-arrow" style="font-size:18px;color:var(--text3);transition:transform .2s">›</span>
         </div>
       </div>
@@ -2025,7 +2025,11 @@ function copyStockToClipboard() {
 
     if(!stocks.length){ toast('Склад пуст','err'); return; }
 
-    var lines = stocks.map(function(s){
+    var lines = stocks
+      .filter(function(s){
+        return (Number(s.available)||0) > 0 || (Number(s.reserved)||0) > 0;
+      })
+      .map(function(s){
       var avail = Number(s.available)||0;
       var res   = Number(s.reserved)||0;
       var who   = reserveMap[s.name] || [];
