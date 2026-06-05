@@ -481,39 +481,67 @@ hr.div{border:none;border-top:1px solid var(--border);margin:14px 0}
   </div>
   <div class="scroll-area">
 
-    <!-- Депозит -->
-    <div class="card" id="deposit-card">
-      <div class="ct">Депозит</div>
-      <div id="deposit-balance" style="font-size:32px;font-weight:800;letter-spacing:-.5px;margin-bottom:4px">—</div>
-      <div style="font-size:13px;color:var(--text2)">Текущий баланс</div>
+    <!-- Депозит (сворачиваемый) -->
+    <div class="card" id="deposit-card" style="padding:0;overflow:hidden;margin-bottom:14px">
+      <!-- Строка с депозитом + кнопка отправить -->
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px;cursor:pointer" onclick="toggleDepositExpand()">
+        <div>
+          <div style="font-size:11px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--text3);margin-bottom:4px">Депозит</div>
+          <div id="deposit-balance" style="font-size:28px;font-weight:800;letter-spacing:-.5px">—</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <button onclick="event.stopPropagation();sendDepositToUser()" style="
+            background:transparent;border:1.5px solid var(--border);border-radius:var(--rs);
+            padding:8px 14px;font-family:'Manrope',sans-serif;font-size:13px;font-weight:600;
+            color:var(--text2);cursor:pointer;white-space:nowrap">📤 отправить</button>
+          <span id="deposit-expand-arrow" style="font-size:18px;color:var(--text3);transition:transform .2s">›</span>
+        </div>
+      </div>
+      <!-- Раскрываемые ячейки -->
+      <div id="deposit-expand-body" style="display:none;padding:0 16px 16px;border-top:1px solid var(--border)">
+        <!-- zp -->
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border)">
+          <div>
+            <div style="font-size:11px;color:var(--text3);margin-bottom:2px">ЗП</div>
+            <div id="money-zp-val" style="font-size:18px;font-weight:700">—</div>
+          </div>
+          <button onclick="startEditMoney('zp','ЗП')" style="
+            background:transparent;border:1.5px solid var(--border);border-radius:var(--rs);
+            padding:6px 12px;font-family:'Manrope',sans-serif;font-size:12px;font-weight:600;
+            color:var(--text2);cursor:pointer">ред.</button>
+        </div>
+        <!-- plus_deposit -->
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0">
+          <div>
+            <div style="font-size:11px;color:var(--text3);margin-bottom:2px">Плюс депозит</div>
+            <div id="money-plus-deposit-val" style="font-size:18px;font-weight:700">—</div>
+          </div>
+          <button onclick="startEditMoney('plus_deposit','Плюс депозит')" style="
+            background:transparent;border:1.5px solid var(--border);border-radius:var(--rs);
+            padding:6px 12px;font-family:'Manrope',sans-serif;font-size:12px;font-weight:600;
+            color:var(--text2);cursor:pointer">ред.</button>
+        </div>
+      </div>
     </div>
 
-    <!-- Кнопка Остатки -->
-    <!-- Блок остатков товара -->
-    <div class="card" style="margin-bottom:14px">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+    <!-- Блок остатков товара (сворачиваемый) -->
+    <div class="card" style="padding:0;overflow:hidden;margin-bottom:14px">
+      <div onclick="toggleStockTable()" style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px;cursor:pointer;user-select:none">
         <div class="ct" style="margin-bottom:0">Остатки товара</div>
-        <button onclick="copyStockToClipboard()" style="
-          background:transparent;border:1.5px solid var(--border);border-radius:var(--rs);
-          padding:6px 12px;font-family:'Manrope',sans-serif;font-size:13px;font-weight:600;
-          color:var(--text2);cursor:pointer">📋 копировать</button>
+        <div style="display:flex;align-items:center;gap:8px">
+          <button onclick="event.stopPropagation();copyStockToClipboard()" style="
+            background:transparent;border:1.5px solid var(--border);border-radius:var(--rs);
+            padding:6px 12px;font-family:'Manrope',sans-serif;font-size:13px;font-weight:600;
+            color:var(--text2);cursor:pointer">📋</button>
+          <span id="stock-table-arrow" style="font-size:18px;color:var(--text3);transition:transform .2s">›</span>
+        </div>
       </div>
-      <div id="stock-table-list">
-        <div style="color:var(--text3);font-size:13px">Загрузка…</div>
+      <div id="stock-table-body" style="display:none;padding:0 16px 12px">
+        <div id="stock-table-list" style="color:var(--text3);font-size:13px">Загрузка…</div>
       </div>
     </div>
 
-    <!-- Кнопка Депозит -->
-    <button onclick="sendDepositToUser()" style="
-      width:100%;background:var(--surf);border:1.5px solid var(--border);
-      border-radius:var(--r);padding:16px;font-family:'Manrope',sans-serif;
-      font-size:16px;font-weight:600;color:var(--text2);cursor:pointer;
-      display:flex;align-items:center;justify-content:space-between;
-      margin-bottom:14px;
-    ">
-      <span>💰 Депозит</span>
-      <span style="font-size:13px;color:var(--text3)">отправить</span>
-    </button>
+    <!-- Кнопка Депозит (удалена — перенесена в блок депозита) -->
 
     <!-- Новая операция -->
     <div class="card" style="padding:0;overflow:hidden">
@@ -576,6 +604,23 @@ hr.div{border:none;border-top:1px solid var(--border);margin:14px 0}
       <button class="popup-btn success" onclick="saveOrderEdit()">Сохранить</button>
       <button class="popup-btn danger"  id="btn-reactivate" onclick="reactivateOrder()" style="display:none">↺ Не завершать</button>
       <button class="popup-btn cancel"  onclick="closePopup('pop-order-edit')">Отмена</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ ПОПАП: редактирование ячейки money ════════════════════ -->
+<div class="popup-overlay hidden" id="pop-money-edit">
+  <div class="popup">
+    <div class="popup-handle"></div>
+    <div class="popup-title" id="money-edit-label">Редактировать</div>
+    <div class="popup-sub">Введите новое значение</div>
+    <input type="number" id="money-edit-input" step="0.01"
+      style="width:100%;background:var(--surf2);border:1.5px solid var(--border);
+             border-radius:var(--rs);color:var(--text);font-family:Manrope,sans-serif;
+             font-size:20px;padding:14px;outline:none;margin-bottom:16px">
+    <div class="popup-btns">
+      <button class="popup-btn success" onclick="saveMoneyEdit()">Сохранить</button>
+      <button class="popup-btn cancel"  onclick="closePopup('pop-money-edit')">Отмена</button>
     </div>
   </div>
 </div>
@@ -1940,9 +1985,12 @@ function loadStockTable() {
       if(who && reserveMap[key].indexOf(who) === -1) reserveMap[key].push(who);
     });
 
-    if(!stocks.length){ container.innerHTML='<div style="color:var(--text3);font-size:13px">Склад пуст</div>'; return; }
+    var filtered = stocks.filter(function(s){
+      return (Number(s.available)||0) > 0 || (Number(s.reserved)||0) > 0;
+    });
+    if(!filtered.length){ container.innerHTML='<div style="color:var(--text3);font-size:13px">Нет товаров в наличии</div>'; return; }
 
-    container.innerHTML = stocks.map(function(s){
+    container.innerHTML = filtered.map(function(s){
       var avail = Number(s.available)||0;
       var res   = Number(s.reserved)||0;
       var who   = reserveMap[s.name] || [];
@@ -2014,6 +2062,75 @@ function fallbackCopy(text) {
     toast('Не удалось скопировать','err');
   }
   document.body.removeChild(ta);
+}
+
+function toggleDepositExpand() {
+  var body  = document.getElementById('deposit-expand-body');
+  var arrow = document.getElementById('deposit-expand-arrow');
+  var open  = body.style.display === 'none';
+  body.style.display  = open ? 'block' : 'none';
+  arrow.style.transform = open ? 'rotate(90deg)' : '';
+  if(open) loadMoneyFields();
+}
+
+function toggleStockTable() {
+  var body  = document.getElementById('stock-table-body');
+  var arrow = document.getElementById('stock-table-arrow');
+  var open  = body.style.display === 'none';
+  body.style.display  = open ? 'block' : 'none';
+  arrow.style.transform = open ? 'rotate(90deg)' : '';
+  if(open) loadStockTable();
+}
+
+function loadMoneyFields() {
+  sbGet('money','select=zp,plus_deposit&id=eq.1')
+    .then(function(rows){
+      if(!rows||!rows[0]) return;
+      var r = rows[0];
+      var zpEl = document.getElementById('money-zp-val');
+      var pdEl = document.getElementById('money-plus-deposit-val');
+      if(zpEl) zpEl.textContent = fmt(Number(r.zp)||0) + ' ₾';
+      if(pdEl) pdEl.textContent = fmt(Number(r.plus_deposit)||0) + ' ₾';
+    });
+}
+
+// Редактирование ячейки money
+var _editMoneyField = null;
+var _editMoneyLabel = '';
+
+function startEditMoney(field, label) {
+  _editMoneyField = field;
+  _editMoneyLabel = label;
+  // Получить текущее значение
+  sbGet('money','select='+field+'&id=eq.1')
+    .then(function(rows){
+      var cur = rows && rows[0] ? Number(rows[0][field])||0 : 0;
+      document.getElementById('money-edit-label').textContent = label;
+      document.getElementById('money-edit-input').value = cur;
+      document.getElementById('pop-money-edit').classList.remove('hidden');
+    });
+}
+
+function saveMoneyEdit() {
+  if(!_editMoneyField) return;
+  var val = parseFloat(document.getElementById('money-edit-input').value)||0;
+  var body = {};
+  body[_editMoneyField] = val;
+  var btn = document.querySelector('#pop-money-edit .popup-btn.success');
+  if(btn){btn.disabled=true;btn.textContent='…';}
+  sbPatch('money','id=eq.1', body)
+    .then(function(){
+      if(btn){btn.disabled=false;btn.textContent='Сохранить';}
+      closePopup('pop-money-edit');
+      loadDeposit();
+      loadMoneyFields();
+      toast('Сохранено','ok');
+      _editMoneyField=null;
+    })
+    .catch(function(){
+      if(btn){btn.disabled=false;btn.textContent='Сохранить';}
+      toast('Ошибка','err');
+    });
 }
 
 function toggleMoneyForm() {
