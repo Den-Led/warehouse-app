@@ -1950,22 +1950,26 @@ function hideCustomerSuggest() {
 function sendDepositToUser() {
   sbGet('money', 'select=deposit&id=eq.1')
     .then(function(rows){
-      var bal = rows && rows[0] ? Number(rows[0].deposit) : 0;
+      var bal  = rows && rows[0] ? Number(rows[0].deposit) : 0;
       var text = 'Депозит: ' + fmt(bal) + ' ₾';
+
+      // 1. Всегда копируем в буфер
+      try {
+        if(navigator.clipboard && navigator.clipboard.writeText){
+          navigator.clipboard.writeText(text).catch(function(){ fallbackCopy(text); });
+        } else {
+          fallbackCopy(text);
+        }
+      } catch(e){ fallbackCopy(text); }
+
+      // 2. Открываем чат
       try {
         if(tg && tg.openTelegramLink){
-          tg.openTelegramLink('https://t.me/violoncelle11?text=' + encodeURIComponent(text));
-          return;
+          tg.openTelegramLink('https://t.me/violoncelle11?text='+encodeURIComponent(text));
         }
       } catch(e){}
-      // Fallback — копируем
-      if(navigator.clipboard && navigator.clipboard.writeText){
-        navigator.clipboard.writeText(text)
-          .then(function(){ toast('Скопировано (откройте чат вручную)','ok'); })
-          .catch(function(){ fallbackCopy(text); });
-      } else {
-        fallbackCopy(text);
-      }
+
+      toast('Скопировано ✓\nЕсли текст не вставился — вставьте вручную','ok');
     })
     .catch(function(){ toast('Ошибка загрузки депозита','err'); });
 }
@@ -2045,14 +2049,25 @@ function copyStockToClipboard() {
     });
 
     var text = lines.join('\n');
+
+    // 1. Всегда копируем в буфер
+    try {
+      if(navigator.clipboard && navigator.clipboard.writeText){
+        navigator.clipboard.writeText(text).catch(function(){ fallbackCopy(text); });
+      } else {
+        fallbackCopy(text);
+      }
+    } catch(e){ fallbackCopy(text); }
+
+    // 2. Открываем чат с @violoncelle11
     try {
       if(tg && tg.openTelegramLink){
         tg.openTelegramLink('https://t.me/violoncelle11?text='+encodeURIComponent(text));
-        return;
       }
     } catch(e){}
-    fallbackCopy(text);
-    toast('Скопировано','ok');
+
+    // 3. Подсказка
+    toast('Скопировано ✓\nЕсли текст не вставился — вставьте вручную','ok');
   }).catch(function(){ toast('Ошибка','err'); });
 }
 
