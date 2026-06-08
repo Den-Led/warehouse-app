@@ -1273,35 +1273,32 @@ function confirmPayMethod(method){
   closePopup('pop-pay');
   if(!_pendingPayOrderId) return;
   var orderId = _pendingPayOrderId;
-  updateOrderField(orderId,'payStatus','Оплачен','payMethod',method);
-
-  // Определяем короткое имя для тоггла
+  // Определяем короткое имя для тоггла (UI обновляем сразу)
   var shortName = '';
   if(method.indexOf('Дену') !== -1)     shortName = 'Ден';
   else if(method.indexOf('Яне') !== -1) shortName = 'Яна';
   else shortName = method.replace('Оплатили ','').slice(0,4);
   var pn = document.getElementById('pay-name-'+orderId);
   if(pn) pn.textContent = shortName;
-  // Цвет тоггла: Яна=голубой, Ден=зелёный — ищем по id
   var payLabel = document.getElementById('pay-tog-'+orderId);
   if(payLabel){
     if(method.indexOf('Яне') !== -1) payLabel.classList.add('pay-yane');
     else payLabel.classList.remove('pay-yane');
   }
-
-  // п.2: Оплатили Яне → сумма заказа → client_yane
-  // п.3: Оплатили Дену → сумма заказа → client_den
-  var moneyCol = method.indexOf('Яне') !== -1 ? 'client_yane'
-               : method.indexOf('Дену') !== -1 ? 'client_den' : null;
-  if(moneyCol){
-    getOrderTotal(orderId).then(function(total){
-      if(total > 0) moneyAdd(moneyCol, total);
-    });
-  }
-
-  // Обновить состояние кнопки Завершить
   updateCompleteBtn(orderId);
   _pendingPayOrderId=null; _pendingPayToggle=null;
+
+  // Деньги и база — строго последовательно
+  var moneyCol = method.indexOf('Яне') !== -1 ? 'client_yane'
+               : method.indexOf('Дену') !== -1 ? 'client_den' : null;
+  getOrderTotal(orderId).then(function(total){
+    var chain = Promise.resolve();
+    if(moneyCol && total > 0) chain = chain.then(function(){ return moneyAdd(moneyCol, total); });
+    // updateOrderField только после moneyAdd
+    return chain.then(function(){
+      updateOrderField(orderId,'payStatus','Оплачен','payMethod',method);
+    });
+  });
 }
 function cancelPayPop(){
   closePopup('pop-pay');
@@ -1314,12 +1311,10 @@ function cancelPayPop(){
 }
 function toggleDelivery(orderId,chk){
   var isDelivered = chk.checked;
-  updateOrderField(orderId,'delivery',isDelivered?'Да':'Нет','','');
 
   // Обновить цвет трека тоггла доставки визуально
   var track = chk.nextElementSibling;
   if(track) track.style.background = isDelivered ? 'var(--green)' : '';
-  // Обновить состояние кнопки Завершить
   setTimeout(function(){ updateCompleteBtn(orderId); }, 50);
 
   // Доставка ВКЛ:  reserved → sold
@@ -1361,7 +1356,10 @@ function toggleDelivery(orderId,chk){
       }, Promise.resolve());
     })
     .then(function(){
-      // п.4: доставка ВКЛ → маржа → zp; доставка ВЫКЛ → откат из zp
+      // Сначала обновляем delivery в базе
+      updateOrderField(orderId,'delivery',isDelivered?'Да':'Нет','','');
+
+      // Потом деньги
       getOrderMargin(orderId).then(function(margin){
         if(margin > 0) moneyAdd('zp', isDelivered ? margin : -margin);
       });
@@ -1495,35 +1493,20 @@ function doCancelComplete(){
   closePopup('pop-complete');
   if(!_pendingCompleteId) return;
   var orderId = _pendingCompleteId;
-  var btn     = _pendingCompleteBtn;
   _pendingCompleteId = null; _pendingCompleteBtn = null;
 
-  // Откатить оплату
-  updateOrderField(orderId,'payStatus','Не оплачен','payMethod','');
-  var pm = document.getElementById('pay-method-'+orderId);
-  if(pm){ pm.style.visibility='hidden'; pm.textContent=''; }
-  var payTog = document.getElementById('pay-tog-'+orderId);
-  if(payTog){
-    payTog.classList.remove('pay-yane');
-    var payChk = payTog.querySelector('input');
-    if(payChk) payChk.checked = false;
-    var payName = document.getElementById('pay-name-'+orderId);
-    if(payName) payName.textContent = '';
-  }
-
-  // Откатить доставку
-  updateOrderField(orderId,'delivery','Нет','','');
-  var delTog = document.getElementById('del-tog-'+orderId);
-  if(delTog){
-    var delChk = delTog.querySelector('input');
-    if(delChk) delChk.checked = false;
-    var track = delTog.querySelector('.emoji-track');
-    if(track) track.style.background = '';
-  }
-
-  // Обновить кнопку Завершить
-  updateCompleteBtn(orderId);
-  toast('Статусы сброшены','ok');
+  // Только меняем статус на Активен — тогглы и деньги не трогаем
+  sbPatch('journal',
+    'operation_id=eq.'+encodeURIComponent(orderId)+'&type=eq.Заказ',
+    {status:'Активен'})
+    .then(function(){
+      allEntries.forEach(function(e){
+        if(e.id === orderId && e.type === 'Заказ') e.status = 'Активен';
+      });
+      toast('Заказ снова активен','ok');
+      openOrders();
+    })
+    .catch(function(){ toast('Ошибка','err'); });
 }
 
 function askComplete(orderId,btn){
