@@ -1245,7 +1245,7 @@ function togglePay(orderId,chk){
     _pendingPayOrderId=orderId; _pendingPayToggle=chk;
     document.getElementById('pop-pay').classList.remove('hidden');
   } else {
-    // Узнаём текущий способ оплаты чтобы откатить money
+    // Сначала читаем pay_method, ПОТОМ обнуляем — чтобы избежать race condition
     sbGet('journal','select=pay_method,qty,price_per_unit&operation_id=eq.'+encodeURIComponent(orderId)+'&type=eq.Заказ')
       .then(function(rows){
         if(!rows||!rows.length) return;
@@ -1253,12 +1253,20 @@ function togglePay(orderId,chk){
         var total  = rows.reduce(function(s,r){ return s+(Number(r.qty)||0)*(Number(r.price_per_unit)||0); }, 0);
         var moneyCol = method.indexOf('Яне') !== -1 ? 'client_yane'
                      : method.indexOf('Дену') !== -1 ? 'client_den' : null;
-        if(moneyCol && total > 0) moneyAdd(moneyCol, -total);
+
+        // Сначала откатываем деньги
+        var moneyPromise = (moneyCol && total > 0)
+          ? moneyAdd(moneyCol, -total)
+          : Promise.resolve();
+
+        // Потом обнуляем pay_method в базе
+        return moneyPromise.then(function(){
+          updateOrderField(orderId,'payStatus','Не оплачен','payMethod','');
+          var pm = document.getElementById('pay-method-'+orderId);
+          if(pm){ pm.style.visibility='hidden'; }
+          updateCompleteBtn(orderId);
+        });
       });
-    updateOrderField(orderId,'payStatus','Не оплачен','payMethod','');
-    var pm=document.getElementById('pay-method-'+orderId);
-    if(pm){pm.style.visibility='hidden';}
-    updateCompleteBtn(orderId);
   }
 }
 function confirmPayMethod(method){
