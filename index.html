@@ -1355,6 +1355,51 @@ function toggleDelivery(orderId,chk){
       getOrderMargin(orderId).then(function(margin){
         if(margin > 0) moneyAdd('zp', isDelivered ? margin : -margin);
       });
+
+      // Если доставка ВКЛ — проверяем оплату и отправляем уведомление
+      if(isDelivered){
+        sbGet('journal',
+          'select=qty,price_per_unit,pay_method,pay_status,tg_username,customer&operation_id=eq.'+
+          encodeURIComponent(orderId)+'&type=eq.Заказ&limit=1')
+          .then(function(rows){
+            if(!rows||!rows[0]) return;
+            var r          = rows[0];
+            var payMethod  = r.pay_method  || '';
+            var payStatus  = r.pay_status  || '';
+            var isPaid     = payStatus === 'Оплачен';
+            var isYane     = payMethod.indexOf('Яне')  !== -1;
+            var isDen      = payMethod.indexOf('Дену') !== -1;
+            if(!isPaid || (!isYane && !isDen)) return; // нет оплаты — не отправляем
+
+            // Считаем сумму заказа
+            getOrderTotal(orderId).then(function(total){
+              // Получаем депозит
+              sbGet('money','select=deposit&id=eq.1').then(function(mrows){
+                var deposit = mrows && mrows[0] ? Number(mrows[0].deposit)||0 : 0;
+                var who     = r.tg_username ? '@'+r.tg_username : (r.customer||'клиент');
+                var payWho  = isYane ? 'Яне' : 'Дену';
+                var text    = 'Заказ доставлен '+who+', оплачено '+payWho+' '+fmt(total)+' ₾\n'+
+                              'Депозит = '+fmt(deposit)+' ₾';
+
+                // Копируем в буфер
+                try {
+                  if(navigator.clipboard && navigator.clipboard.writeText){
+                    navigator.clipboard.writeText(text).catch(function(){ fallbackCopy(text); });
+                  } else { fallbackCopy(text); }
+                } catch(e){ fallbackCopy(text); }
+
+                // Открываем чат с @violoncelle11
+                try {
+                  if(tg && tg.openTelegramLink){
+                    tg.openTelegramLink('https://t.me/violoncelle11?text='+encodeURIComponent(text));
+                  }
+                } catch(e){}
+
+                toast('Уведомление скопировано ✓','ok');
+              });
+            });
+          });
+      }
     })
     .catch(function(e){ console.error('delivery toggle error:', e); });
 }
