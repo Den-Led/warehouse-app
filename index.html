@@ -1312,6 +1312,11 @@ function cancelPayPop(){
 function toggleDelivery(orderId,chk){
   var isDelivered = chk.checked;
 
+  // Блокируем тоггл на время операции
+  chk.disabled = true;
+  var label = document.getElementById('del-tog-'+orderId);
+  if(label) label.style.pointerEvents = 'none';
+
   // Обновить цвет трека тоггла доставки визуально
   var track = chk.nextElementSibling;
   if(track) track.style.background = isDelivered ? 'var(--green)' : '';
@@ -1360,9 +1365,19 @@ function toggleDelivery(orderId,chk){
       updateOrderField(orderId,'delivery',isDelivered?'Да':'Нет','','');
 
       // Потом деньги
-      getOrderMargin(orderId).then(function(margin){
-        if(margin > 0) moneyAdd('zp', isDelivered ? margin : -margin);
+      return getOrderMargin(orderId).then(function(margin){
+        if(margin > 0) return moneyAdd('zp', isDelivered ? margin : -margin);
       });
+    })
+    .then(function(){
+      // Разблокируем тоггл только после завершения ВСЕХ операций
+      var togLabel = document.getElementById('del-tog-'+orderId);
+      if(togLabel){
+        var togChk = togLabel.querySelector('input');
+        if(togChk) togChk.disabled = false;
+        togLabel.style.pointerEvents = '';
+      }
+      updateCompleteBtn(orderId);
 
       // Если доставка ВКЛ — проверяем оплату и отправляем уведомление
       if(isDelivered){
@@ -1409,7 +1424,16 @@ function toggleDelivery(orderId,chk){
           });
       }
     })
-    .catch(function(e){ console.error('delivery toggle error:', e); });
+    .catch(function(e){
+      console.error('delivery toggle error:', e);
+      // Разблокируем тоггл даже при ошибке
+      var togLabel = document.getElementById('del-tog-'+orderId);
+      if(togLabel){
+        var togChk = togLabel.querySelector('input');
+        if(togChk) togChk.disabled = false;
+        togLabel.style.pointerEvents = '';
+      }
+    });
 }
 function updateOrderField(orderId,f1,v1,f2,v2){
   var body = {};
