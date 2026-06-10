@@ -945,11 +945,10 @@ function openOrders(){
 }
 
 function renderOrders(){
-  var groups={}, singles=[];
+  var groups={}, arrGroups={}, singles=[];
   allEntries.forEach(function(e){
     if(e.type==='Заказ'){
       if(!groups[e.id]){
-        // Статус берём один раз из первой строки — все строки заказа имеют одинаковый статус
         groups[e.id]={id:e.id,date:e.date,customer:e.customer,
           tg_username:e.tg_username||'',
           payStatus:e.payStatus,payMethod:e.payMethod,delivery:e.delivery,
@@ -957,8 +956,6 @@ function renderOrders(){
       }
       groups[e.id].items.push({name:e.goods,qty:e.qty,price:e.price});
       groups[e.id].totalPercent += e.my_percent || 0;
-      // Обновляем статус группы только если текущая строка «активнее»
-      // Приоритет: завершен-отмена > Завершён > Активен
       var s = e.status||'';
       if(s==='завершен-отмена'){
         groups[e.id].status='завершен-отмена';
@@ -967,10 +964,19 @@ function renderOrders(){
       } else {
         if(groups[e.id].status!=='Завершён'&&groups[e.id].status!=='завершен-отмена') groups[e.id].status='Активен';
       }
-    } else singles.push(e);
+    } else if(e.type==='Завоз'){
+      // Группируем завозы по operation_id
+      if(!arrGroups[e.id]){
+        arrGroups[e.id]={id:e.id,date:e.date,comment:e.comment,items:[]};
+      }
+      arrGroups[e.id].items.push({name:e.goods,qty:e.qty,price:e.price});
+    } else {
+      singles.push(e);
+    }
   });
   var cards=[];
   Object.keys(groups).forEach(function(id){cards.push({kind:'order',data:groups[id]});});
+  Object.keys(arrGroups).forEach(function(id){cards.push({kind:'arrival',data:arrGroups[id]});});
   singles.forEach(function(e){
     var k=e.type==='Перевод'?'transfer':e.type==='Поездка'?'trip':'arrival';
     cards.push({kind:k,data:e});
@@ -1185,12 +1191,29 @@ function renderTripCard(d){
 }
 
 function renderArrivalCard(d){
-  return '<div class="op-card anim"><div class="op-card-head">'+
-    '<span class="op-type-badge arrival">Завоз</span><div style="font-size:11px;color:var(--text3)">'+esc(d.date)+'</div></div>'+
-    '<div class="op-goods-list">'+
-      '<div class="op-goods-row"><span class="op-goods-name">'+esc(d.goods||'—')+'</span>'+
-        '<span class="op-goods-qty">'+(d.qty?d.qty+' шт.':'')+'</span>'+
-        '<span class="op-goods-sum">'+(d.price?fmt(d.price)+' ₾/шт':'')+'</span></div></div>'+
+  // d.items — массив если сгруппировано, иначе одиночный товар
+  var itemsHtml;
+  if(d.items && d.items.length){
+    itemsHtml = d.items.map(function(it){
+      return '<div class="op-goods-row">'+
+        '<span class="op-goods-name">'+esc(it.name||'—')+'</span>'+
+        '<span class="op-goods-qty">'+(it.qty?it.qty+' шт.':'')+'</span>'+
+        '<span class="op-goods-sum">'+(it.price?fmt(it.price)+' ₾/шт':'')+'</span>'+
+      '</div>';
+    }).join('');
+  } else {
+    itemsHtml = '<div class="op-goods-row">'+
+      '<span class="op-goods-name">'+esc(d.goods||'—')+'</span>'+
+      '<span class="op-goods-qty">'+(d.qty?d.qty+' шт.':'')+'</span>'+
+      '<span class="op-goods-sum">'+(d.price?fmt(d.price)+' ₾/шт':'')+'</span>'+
+    '</div>';
+  }
+  return '<div class="op-card anim">'+
+    '<div class="op-card-head">'+
+      '<span class="op-type-badge arrival">Завоз</span>'+
+      '<div style="font-size:11px;color:var(--text3)">'+esc(d.date)+'</div>'+
+    '</div>'+
+    '<div class="op-goods-list">'+itemsHtml+'</div>'+
     (d.comment?'<div style="font-size:12px;color:var(--text3);margin-top:6px">'+esc(d.comment)+'</div>':'')+
   '</div>';
 }
@@ -1619,7 +1642,11 @@ function doCompleteConfirmed(){
     });
   _pendingCompleteId=null; _pendingCompleteBtn=null;
 }
-function closePopup(id){document.getElementById(id).classList.add('hidden');}
+function closePopup(id){
+  document.getElementById(id).classList.add('hidden');
+  // Восстанавливаем элементы которые скрывались при клавиатуре
+  setTimeout(function(){ setKeyboardMode(false); }, 50);
+}
 
 // ══════════════════════════════════════════════════════════════
 // ФОРМА ЗАКАЗА
