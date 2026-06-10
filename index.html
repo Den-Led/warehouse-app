@@ -2727,52 +2727,47 @@ document.addEventListener('keydown', function(e){
 // СКРЫТИЕ ЭЛЕМЕНТОВ ПРИ ПОЯВЛЕНИИ КЛАВИАТУРЫ
 // ══════════════════════════════════════════════════════════════
 function setKeyboardMode(active) {
-  // Найти активный экран
-  var activeScreen = document.querySelector('.screen.vis');
+  if(active){
+    // Найти активный экран
+    var activeScreen = document.querySelector('.screen.vis');
+    var toHide = [];
 
-  // Элементы которые скрываем: заголовок и табы активного экрана + нижнее меню
-  var toHide = [];
+    // Нижнее меню
+    var nav = document.querySelector('.bottom-nav');
+    if(nav) toHide.push(nav);
 
-  // Нижнее меню — всегда
-  var nav = document.querySelector('.bottom-nav');
-  if(nav) toHide.push(nav);
-
-  if(activeScreen) {
-    // Заголовок страницы (page-hd) — первый в активном экране
-    var hd = activeScreen.querySelector('.page-hd');
-    if(hd) toHide.push(hd);
-
-    // Верхняя строка в заказах (flex с заголовком + кнопками Акт/Зав)
-    // это первый div внутри sc-orders
-    if(activeScreen.id === 'sc-orders') {
-      var ordTop = activeScreen.querySelector('div[style*="display:flex"]');
-      if(ordTop) toHide.push(ordTop);
+    if(activeScreen){
+      // Все прямые дочерние div/nav/div кроме scroll-area и orders-list
+      var children = activeScreen.children;
+      for(var i=0; i<children.length; i++){
+        var el = children[i];
+        if(el.id === 'orders-list') continue;
+        if(el.classList && el.classList.contains('scroll-area')) continue;
+        toHide.push(el);
+      }
     }
 
-    // Табы журнала
-    var tabs = activeScreen.querySelector('.j-tabs');
-    if(tabs) toHide.push(tabs);
-
-    // Фильтры (тип операции)
-    var fw = activeScreen.querySelector('.filter-wrap');
-    if(fw) toHide.push(fw);
-  }
-
-  toHide.forEach(function(el){
-    if(active){
+    toHide.forEach(function(el){
+      if(el.dataset.kbHidden) return; // уже скрыт
+      el.dataset.kbHidden = '1';
       el.style.transition = 'opacity .15s ease, max-height .2s ease';
-      el.style.opacity = '0';
-      el.style.maxHeight = '0';
-      el.style.overflow = 'hidden';
+      el.style.opacity    = '0';
+      el.style.maxHeight  = '0';
+      el.style.overflow   = 'hidden';
       el.style.pointerEvents = 'none';
-    } else {
-      el.style.transition = 'opacity .2s ease, max-height .25s ease';
-      el.style.opacity = '';
-      el.style.maxHeight = '';
-      el.style.overflow = '';
+    });
+
+  } else {
+    // Восстановить все помеченные элементы
+    document.querySelectorAll('[data-kb-hidden]').forEach(function(el){
+      el.removeAttribute('data-kb-hidden');
+      el.style.transition  = 'opacity .2s ease, max-height .25s ease';
+      el.style.opacity     = '';
+      el.style.maxHeight   = '';
+      el.style.overflow    = '';
       el.style.pointerEvents = '';
-    }
-  });
+    });
+  }
 }
 
 // Отслеживаем фокус на полях ввода
