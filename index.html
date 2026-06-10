@@ -2275,7 +2275,12 @@ function openCommentEdit(orderId) {
 
 function saveComment() {
   if(!_pendingCommentOrderId) return;
-  var newComment = document.getElementById('comment-edit-text').value.trim();
+  // Убираем фокус с textarea — клавиатура скрывается и элементы возвращаются
+  var ta = document.getElementById('comment-edit-text');
+  if(ta) ta.blur();
+  setKeyboardMode(false);
+
+  var newComment = ta ? ta.value.trim() : '';
   sbPatch('journal',
     'operation_id=eq.'+encodeURIComponent(_pendingCommentOrderId)+'&type=eq.Заказ',
     {comment: newComment})
@@ -2283,7 +2288,7 @@ function saveComment() {
       closePopup('pop-comment');
       toast('Комментарий сохранён','ok');
       _pendingCommentOrderId = null;
-      openOrders(); // обновить карточки
+      openOrders();
     })
     .catch(function(){
       toast('Ошибка сохранения','err');
