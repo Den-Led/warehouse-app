@@ -113,9 +113,9 @@ textarea{resize:vertical;min-height:88px}
 
 /* ── СТЕПЕР КОЛИЧЕСТВА (+/- кнопки) ──────────────────────── */
 .qty-stepper{position:relative;width:100%}
-.qty-stepper input[type=number]{padding:15px 28px 15px 10px;width:100%;text-align:left}
+.qty-stepper input[type=number]{padding:15px 53px 15px 8px;width:100%;text-align:left}
 .qty-stepper-btns{
-  position:absolute;right:1.5px;top:1.5px;bottom:1.5px;width:25px;
+  position:absolute;right:1.5px;top:1.5px;bottom:1.5px;width:50px;
   display:flex;flex-direction:column;
   border-left:1.5px solid var(--border);
   border-radius:0 calc(var(--rs) - 1.5px) calc(var(--rs) - 1.5px) 0;
@@ -124,7 +124,7 @@ textarea{resize:vertical;min-height:88px}
 .qty-stepper-btn{
   flex:1;display:flex;align-items:center;justify-content:center;
   background:var(--surf);border:none;color:var(--text2);
-  cursor:pointer;font-size:10px;line-height:1;padding:0;
+  cursor:pointer;font-size:15px;line-height:1;padding:0;
   -webkit-tap-highlight-color:transparent;touch-action:manipulation;
   font-family:inherit;
 }
@@ -151,14 +151,14 @@ textarea{resize:vertical;min-height:88px}
 .item-row{margin-bottom:16px;padding-bottom:16px;border-bottom:1px solid var(--border)}
 .item-row:last-child{border-bottom:none;margin-bottom:0;padding-bottom:0}
 .item-num{font-size:12px;color:var(--text3);font-weight:700;margin-bottom:7px;letter-spacing:.3px;text-transform:uppercase}
-.item-fields{display:grid;grid-template-columns:1fr 76px 46px;gap:8px;align-items:end}
+.item-fields{display:grid;grid-template-columns:1fr 94px 46px;gap:8px;align-items:end}
 .item-badge{font-size:13px;font-weight:600;margin-top:7px;grid-column:1/3}
 .item-badge.ok{color:var(--green)}.item-badge.low{color:var(--amber)}.item-badge.no{color:var(--coral)}
 
 /* ── СТРОКИ ЗАВОЗА ───────────────────────────────────────── */
 .arr-row{margin-bottom:16px;padding-bottom:16px;border-bottom:1px solid var(--border)}
 .arr-row:last-child{border-bottom:none;margin-bottom:0;padding-bottom:0}
-.arr-row-grid{display:grid;grid-template-columns:76px 1fr 46px;gap:8px;align-items:end;margin-top:8px}
+.arr-row-grid{display:grid;grid-template-columns:94px 1fr 46px;gap:8px;align-items:end;margin-top:8px}
 .arr-new-grid{display:grid;grid-template-columns:1fr;gap:8px;margin-top:8px}
 .arr-new-sub{display:grid;grid-template-columns:1fr 1fr 46px;gap:8px;margin-top:8px}
 .arr-tag{font-size:11px;font-weight:700;letter-spacing:.5px;color:var(--violet);text-transform:uppercase;margin-bottom:4px}
@@ -2461,7 +2461,7 @@ function renderEditRow(id, goodsName, qty, price, margin, isNew) {
       '<div>'+
         '<label style="font-size:11px;color:var(--text3);display:block;margin-bottom:4px">Кол-во</label>'+
         '<div class="qty-stepper">'+
-          '<input type="number" id="edit-qty-'+id+'" value="'+(qty||1)+'" min="1" step="1" style="'+fieldStyle()+';padding-right:28px">'+
+          '<input type="number" id="edit-qty-'+id+'" value="'+(qty||1)+'" min="1" step="1" style="'+fieldStyle()+';padding-right:53px">'+
           '<div class="qty-stepper-btns">'+
             '<button type="button" class="qty-stepper-btn" onclick="qtyStep(\'edit-qty-'+id+'\',1)">▲</button>'+
             '<button type="button" class="qty-stepper-btn" onclick="qtyStep(\'edit-qty-'+id+'\',-1)">▼</button>'+
