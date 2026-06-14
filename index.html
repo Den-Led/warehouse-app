@@ -111,6 +111,26 @@ select{
 }
 textarea{resize:vertical;min-height:88px}
 
+/* ── СТЕПЕР КОЛИЧЕСТВА (+/- кнопки) ──────────────────────── */
+.qty-stepper{position:relative;width:100%}
+.qty-stepper input[type=number]{padding-right:48px;width:100%}
+.qty-stepper-btns{
+  position:absolute;right:1.5px;top:1.5px;bottom:1.5px;width:42px;
+  display:flex;flex-direction:column;
+  border-left:1.5px solid var(--border);
+  border-radius:0 calc(var(--rs) - 1.5px) calc(var(--rs) - 1.5px) 0;
+  overflow:hidden;
+}
+.qty-stepper-btn{
+  flex:1;display:flex;align-items:center;justify-content:center;
+  background:var(--surf);border:none;color:var(--text2);
+  cursor:pointer;font-size:12px;line-height:1;padding:0;
+  -webkit-tap-highlight-color:transparent;touch-action:manipulation;
+  font-family:inherit;
+}
+.qty-stepper-btn:first-child{border-bottom:1px solid var(--border)}
+.qty-stepper-btn:active{background:var(--border2);color:var(--text)}
+
 /* ── ПИЛЛЫ ───────────────────────────────────────────────── */
 .pills{display:flex;flex-wrap:wrap;gap:10px;margin-top:4px}
 .pill{background:var(--surf2);border:1.5px solid var(--border);border-radius:26px;padding:11px 20px;font-size:16px;font-weight:500;color:var(--text2);cursor:pointer}
@@ -397,6 +417,11 @@ hr.div{border:none;border-top:1px solid var(--border);margin:14px 0}
         <div class="tog-row" style="margin-top:4px">
           <label>Перевод выполнен</label>
           <label class="toggle"><input type="checkbox" id="tr-done"><span class="tr"></span></label>
+        </div>
+        <hr class="div">
+        <div class="field">
+          <label>Комментарий</label>
+          <textarea id="tr-note" placeholder="Необязательно…"></textarea>
         </div>
       </div>
       <button class="btn-sub green" onclick="submitTransfer()">Сохранить перевод</button>
@@ -872,10 +897,48 @@ function go(tab){
   document.getElementById('t-'+tab).classList.add(tabCls[tab]);
   document.getElementById('s-'+tab).classList.add('vis');
   if(tab==='order'){
-    if(orderCount===0 && stockReady) addOrderItem();
+    ensureOrderItem();
     if(!customerNames.length) loadCustomerNames();
   }
-  if(tab==='arrival' && arrCount===0 && stockReady) addArrItem(false);
+  if(tab==='arrival') ensureArrItem();
+}
+
+// Гарантированно добавить первую позицию заказа, даже если склад ещё грузится
+function ensureOrderItem(){
+  if(orderCount>0) return;
+  if(stockReady){ addOrderItem(); return; }
+  setStockLoading(true);
+  var tries=0;
+  var iv=setInterval(function(){
+    tries++;
+    if(stockReady){
+      clearInterval(iv);
+      setStockLoading(false);
+      if(orderCount===0 && currentTab==='order') addOrderItem();
+    } else if(tries>75){ // ~15с — таймаут ожидания
+      clearInterval(iv);
+      setStockLoading(false);
+    }
+  },200);
+}
+
+// Гарантированно добавить первую позицию завоза, даже если склад ещё грузится
+function ensureArrItem(){
+  if(arrCount>0) return;
+  if(stockReady){ addArrItem(false); return; }
+  setStockLoading(true);
+  var tries=0;
+  var iv=setInterval(function(){
+    tries++;
+    if(stockReady){
+      clearInterval(iv);
+      setStockLoading(false);
+      if(arrCount===0 && currentTab==='arrival') addArrItem(false);
+    } else if(tries>75){
+      clearInterval(iv);
+      setStockLoading(false);
+    }
+  },200);
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -1141,11 +1204,14 @@ function renderTransferCard(d){
       '<div style="font-size:11px;color:var(--text3)">'+esc(d.date)+'</div>'+
     '</div>'+
     '<div style="display:flex;align-items:flex-end;justify-content:space-between;gap:8px">'+
-      '<div>'+
-        '<div class="op-amount">'+( d.amount?fmt(d.amount)+' ₾':'—')+'</div>'+
+      '<div style="cursor:pointer" onclick="openCommentEdit(this.dataset.oid,\'transfer\')" data-oid="'+tid+'">'+
+        '<div class="op-amount" style="text-decoration:underline dotted">'+( d.amount?fmt(d.amount)+' ₾':'—')+'</div>'+
         '<div style="font-size:13px;font-weight:700;color:'+(done?'var(--green)':'var(--coral)')+'">'+
           (done?'✅ Выполнен':'⏳ Ожидает')+
         '</div>'+
+        (d.comment
+          ? '<div style="font-size:12px;color:var(--text2);margin-top:4px;font-style:italic">'+esc(d.comment)+'</div>'
+          : '<div style="font-size:11px;color:var(--text3);margin-top:3px">+ комментарий</div>')+
       '</div>'+
       (!done
         ? '<button class="btn-complete" onclick="completeTransfer(this.dataset.tid,this)" data-tid="'+tid+'">Выполнить</button>'
@@ -1662,7 +1728,13 @@ function addOrderItem(){
     '<div class="item-num">Позиция '+i+'</div>'+
     '<div class="item-fields">'+
       '<select id="og-'+i+'" onchange="onGoodsChange('+i+')">'+opts+'</select>'+
-      '<input type="number" id="oq-'+i+'" placeholder="Кол-во" min="1" step="1">'+
+      '<div class="qty-stepper">'+
+        '<input type="number" id="oq-'+i+'" placeholder="Кол-во" min="1" step="1">'+
+        '<div class="qty-stepper-btns">'+
+          '<button type="button" class="qty-stepper-btn" onclick="qtyStep(\'oq-'+i+'\',1)">▲</button>'+
+          '<button type="button" class="qty-stepper-btn" onclick="qtyStep(\'oq-'+i+'\',-1)">▼</button>'+
+        '</div>'+
+      '</div>'+
       (i>1?'<button class="btn-rm" onclick="removeOI('+i+')">×</button>':'<div></div>')+
     '</div>'+
     '<div id="ob-'+i+'" class="item-badge"></div>';
@@ -1791,10 +1863,11 @@ function resetOrder(){
 function submitTransfer(){
   var amt     = parseFloat(document.getElementById('tr-amount').value);
   var isDone  = document.getElementById('tr-done').checked;
+  var note    = document.getElementById('tr-note').value.trim();
   if(!amt||amt<=0){toast('Введите сумму','err');return;}
   sbPost('journal',[{
     type:'Перевод', operation_id:generateId('TRN'),
-    amount:amt,
+    amount:amt, comment:note,
     transfer_status:isDone?'Выполнен':'Нет',
     status:'Завершён'
   }]).then(function(){
@@ -1803,6 +1876,7 @@ function submitTransfer(){
     toast('Перевод сохранён','ok');
     document.getElementById('tr-amount').value='';
     document.getElementById('tr-done').checked=false;
+    document.getElementById('tr-note').value='';
   }).catch(function(){toast('Ошибка связи','err');});
 }
 function submitTrip(){
@@ -1831,7 +1905,13 @@ function addArrItem(isNew){
         '<div class="field" style="margin-bottom:0"><label>Название</label><input type="text" id="an-'+i+'" placeholder="Название"></div>'+
       '</div>'+
       '<div class="arr-new-sub">'+
-        '<div><label>Кол-во</label><input type="number" id="aq-'+i+'" placeholder="0" min="1" step="1"></div>'+
+        '<div><label>Кол-во</label><div class="qty-stepper">'+
+          '<input type="number" id="aq-'+i+'" placeholder="0" min="1" step="1">'+
+          '<div class="qty-stepper-btns">'+
+            '<button type="button" class="qty-stepper-btn" onclick="qtyStep(\'aq-'+i+'\',1)">▲</button>'+
+            '<button type="button" class="qty-stepper-btn" onclick="qtyStep(\'aq-'+i+'\',-1)">▼</button>'+
+          '</div>'+
+        '</div></div>'+
         '<div><label>Цена (₾)</label><input type="number" id="apr-'+i+'" placeholder="0.00" min="0" step="0.01"></div>'+
         '<button class="btn-rm" onclick="removeAI('+i+')" style="align-self:end">×</button>'+
       '</div>'+
@@ -1841,7 +1921,13 @@ function addArrItem(isNew){
       '<select id="as-'+i+'" onchange="onArrGoodsChange('+i+')">'+buildStockOpts()+'</select></div>'+
       '<div class="arr-info" id="apb-'+i+'"></div>'+
       '<div class="arr-row-grid">'+
-        '<input type="number" id="aq-'+i+'" placeholder="Кол-во" min="1" step="1">'+
+        '<div class="qty-stepper">'+
+          '<input type="number" id="aq-'+i+'" placeholder="Кол-во" min="1" step="1">'+
+          '<div class="qty-stepper-btns">'+
+            '<button type="button" class="qty-stepper-btn" onclick="qtyStep(\'aq-'+i+'\',1)">▲</button>'+
+            '<button type="button" class="qty-stepper-btn" onclick="qtyStep(\'aq-'+i+'\',-1)">▼</button>'+
+          '</div>'+
+        '</div>'+
         '<input type="number" id="apr-'+i+'" placeholder="Цена" min="0" step="0.01">'+
         '<button class="btn-rm" onclick="removeAI('+i+')" style="align-self:center">×</button>'+
       '</div>'+
@@ -2256,19 +2342,21 @@ function toggleMoneyForm() {
 }
 
 // ══════════════════════════════════════════════════════════════
-// РЕДАКТИРОВАНИЕ КОММЕНТАРИЯ ЗАКАЗА
+// РЕДАКТИРОВАНИЕ КОММЕНТАРИЯ (заказ / перевод)
 // ══════════════════════════════════════════════════════════════
 var _pendingCommentOrderId = null;
+var _pendingCommentType    = 'Заказ';
 
-function openCommentEdit(orderId) {
+function openCommentEdit(orderId, kind) {
   _pendingCommentOrderId = orderId;
-  // Найти текущий комментарий из allEntries
-  var group = null;
-  Object.keys(allEntries.reduce ? {} : {}).forEach(function(){});
-  // Ищем в DOM — берём текст из italic div
-  var card = document.getElementById('card-'+orderId);
-  var commentEl = card ? card.querySelector('div[style*="italic"]') : null;
-  var current = commentEl ? commentEl.textContent : '';
+  _pendingCommentType    = (kind==='transfer') ? 'Перевод' : 'Заказ';
+
+  // Ищем текущий комментарий в allEntries
+  var current = '';
+  allEntries.forEach(function(e){
+    if(e.id === orderId && e.type === _pendingCommentType) current = e.comment || '';
+  });
+
   document.getElementById('comment-edit-text').value = current;
   document.getElementById('pop-comment').classList.remove('hidden');
 }
@@ -2281,10 +2369,17 @@ function saveComment() {
   setKeyboardMode(false);
 
   var newComment = ta ? ta.value.trim() : '';
+  var orderId = _pendingCommentOrderId;
+  var type    = _pendingCommentType;
+
   sbPatch('journal',
-    'operation_id=eq.'+encodeURIComponent(_pendingCommentOrderId)+'&type=eq.Заказ',
+    'operation_id=eq.'+encodeURIComponent(orderId)+'&type=eq.'+encodeURIComponent(type),
     {comment: newComment})
     .then(function(){
+      // Обновляем локально
+      allEntries.forEach(function(e){
+        if(e.id === orderId && e.type === type) e.comment = newComment;
+      });
       closePopup('pop-comment');
       toast('Комментарий сохранён','ok');
       _pendingCommentOrderId = null;
@@ -2365,7 +2460,13 @@ function renderEditRow(id, goodsName, qty, price, margin, isNew) {
     '<div style="display:grid;grid-template-columns:1fr 1fr 1fr 36px;gap:8px;align-items:end">'+
       '<div>'+
         '<label style="font-size:11px;color:var(--text3);display:block;margin-bottom:4px">Кол-во</label>'+
-        '<input type="number" id="edit-qty-'+id+'" value="'+(qty||1)+'" min="1" step="1" style="'+fieldStyle()+'">'+
+        '<div class="qty-stepper">'+
+          '<input type="number" id="edit-qty-'+id+'" value="'+(qty||1)+'" min="1" step="1" style="'+fieldStyle()+';padding-right:48px">'+
+          '<div class="qty-stepper-btns">'+
+            '<button type="button" class="qty-stepper-btn" onclick="qtyStep(\'edit-qty-'+id+'\',1)">▲</button>'+
+            '<button type="button" class="qty-stepper-btn" onclick="qtyStep(\'edit-qty-'+id+'\',-1)">▼</button>'+
+          '</div>'+
+        '</div>'+
       '</div>'+
       '<div>'+
         '<label style="font-size:11px;color:var(--text3);display:block;margin-bottom:4px">Цена (₾)</label>'+
@@ -2690,6 +2791,24 @@ function submitMoney() {
 }
 
 function fmt(n){var num=Number(n)||0;return Number.isInteger(num)?String(num):String(Math.round(num*100)/100);}
+// Стрелки +/- для полей количества
+function qtyStep(id, delta) {
+  var el = document.getElementById(id);
+  if(!el) return;
+  var step = parseFloat(el.step) || 1;
+  var min  = (el.min !== '' && el.min !== undefined) ? parseFloat(el.min) : 0;
+  var max  = (el.max !== '' && el.max !== undefined) ? parseFloat(el.max) : null;
+  var cur  = parseFloat(el.value);
+  if(isNaN(cur)) cur = min;
+  var next = cur + delta * step;
+  if(next < min) next = min;
+  if(max !== null && next > max) next = max;
+  // Округляем для целых шагов чтобы избежать 1.0000000002
+  el.value = (Math.round(next*100)/100).toString();
+  el.dispatchEvent(new Event('input',  {bubbles:true}));
+  el.dispatchEvent(new Event('change', {bubbles:true}));
+}
+
 function generateId(prefix){
   var d=new Date();
   var pad=function(n){return String(n).padStart(2,'0');};
