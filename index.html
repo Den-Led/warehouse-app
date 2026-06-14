@@ -151,7 +151,7 @@ textarea{resize:vertical;min-height:88px}
 .item-row{margin-bottom:16px;padding-bottom:16px;border-bottom:1px solid var(--border)}
 .item-row:last-child{border-bottom:none;margin-bottom:0;padding-bottom:0}
 .item-num{font-size:12px;color:var(--text3);font-weight:700;margin-bottom:7px;letter-spacing:.3px;text-transform:uppercase}
-.item-fields{display:grid;grid-template-columns:1fr 94px 46px;gap:8px;align-items:end}
+.item-fields{display:grid;grid-template-columns:1fr 94px;gap:8px;align-items:end}
 .item-badge{font-size:13px;font-weight:600;margin-top:7px;grid-column:1/3}
 .item-badge.ok{color:var(--green)}.item-badge.low{color:var(--amber)}.item-badge.no{color:var(--coral)}
 
@@ -793,7 +793,7 @@ applyTheme();
 // ══════════════════════════════════════════════════════════════
 // STATE
 // ══════════════════════════════════════════════════════════════
-var stockItems=[], orderCount=0, arrCount=0, payMethod='', currentScreen='home';
+var stockItems=[], orderCount=0, _visibleItems=0, arrCount=0, payMethod='', currentScreen='home';
 var stockReady=false, MAX_ITEMS=5;
 var allEntries=[], typeFilter='', statusFilter='all';
 var _pendingPayOrderId=null, _pendingPayToggle=null;
@@ -1718,9 +1718,10 @@ function closePopup(id){
 // ФОРМА ЗАКАЗА
 // ══════════════════════════════════════════════════════════════
 function addOrderItem(){
-  if(orderCount>=MAX_ITEMS) return;
+  if(_visibleItems>=MAX_ITEMS) return;
   orderCount++;
   var i=orderCount;
+  _visibleItems++;
   var row=document.createElement('div');
   row.className='item-row anim';row.id='oi-'+i;
   var opts=buildStockOpts();
@@ -1729,19 +1730,40 @@ function addOrderItem(){
     '<div class="item-fields">'+
       '<select id="og-'+i+'" onchange="onGoodsChange('+i+')">'+opts+'</select>'+
       '<div class="qty-stepper">'+
-        '<input type="number" id="oq-'+i+'" value="1" min="1" step="1">'+
+        '<input type="number" id="oq-'+i+'" value="1" min="0" step="1" oninput="onOrderQtyInput(this)">'+
         '<div class="qty-stepper-btns">'+
           '<button type="button" class="qty-stepper-btn" onclick="qtyStep(\'oq-'+i+'\',1)">▲</button>'+
           '<button type="button" class="qty-stepper-btn" onclick="qtyStep(\'oq-'+i+'\',-1)">▼</button>'+
         '</div>'+
       '</div>'+
-      (i>1?'<button class="btn-rm" onclick="removeOI('+i+')">×</button>':'<div></div>')+
     '</div>'+
     '<div id="ob-'+i+'" class="item-badge"></div>';
   document.getElementById('order-list').appendChild(row);
-  document.getElementById('btn-add-o').disabled=orderCount>=MAX_ITEMS;
+  document.getElementById('btn-add-o').disabled=_visibleItems>=MAX_ITEMS;
+  renumberOrderItems();
 }
-function removeOI(i){var el=document.getElementById('oi-'+i);if(el)el.remove();orderCount--;document.getElementById('btn-add-o').disabled=false;}
+
+// Поле «Количество» = 0 → удалить позицию (если она не единственная)
+function onOrderQtyInput(inputEl){
+  var val = parseInt(inputEl.value,10);
+  if(isNaN(val) || val > 0) return;
+  if(_visibleItems <= 1) return; // не удаляем последнюю оставшуюся позицию
+  var row = inputEl.closest('.item-row');
+  if(!row) return;
+  row.remove();
+  _visibleItems--;
+  document.getElementById('btn-add-o').disabled=_visibleItems>=MAX_ITEMS;
+  renumberOrderItems();
+}
+
+// Пересчитать подписи «Позиция N» по порядку оставшихся строк
+function renumberOrderItems(){
+  var rows = document.querySelectorAll('#order-list .item-row');
+  rows.forEach(function(row, idx){
+    var num = row.querySelector('.item-num');
+    if(num) num.textContent = 'Позиция '+(idx+1);
+  });
+}
 function onGoodsChange(i){
   var sel=document.getElementById('og-'+i),badge=document.getElementById('ob-'+i);
   var opt=sel.options[sel.selectedIndex];
@@ -1764,16 +1786,18 @@ function pickPill(el){document.querySelectorAll('#pay-pills .pill').forEach(func
 function togPay(){var on=document.getElementById('pay-chk').checked;document.getElementById('pay-method').style.display=on?'block':'none';if(!on){document.querySelectorAll('#pay-pills .pill').forEach(function(p){p.classList.remove('sel');});payMethod='';}}
 
 function submitOrder(){
-  var items=[],err=false;
-  for(var i=1;i<=orderCount+10;i++){
-    var sg=document.getElementById('og-'+i),sq=document.getElementById('oq-'+i);
-    if(!sg||!sq)continue;if(!sg.value)continue;
-    var q=parseInt(sq.value,10);
-    if(isNaN(q)||q<=0){toast('Укажите количество для позиции '+i,'err');err=true;break;}
+  var items=[];
+  document.querySelectorAll('#order-list .item-row').forEach(function(row){
+    var sg = row.querySelector('select');
+    var sq = row.querySelector('input[type=number]');
+    if(!sg||!sq) return;
+    if(!sg.value) return; // товар не выбран
+    var q = parseInt(sq.value,10);
+    if(isNaN(q) || q<=0) return; // 0 — позиция считается удалённой
     var opt=sg.options[sg.selectedIndex];
     items.push({goodsId:sg.value,goodsName:opt.getAttribute('data-name')||opt.text,qty:q,price:parseFloat(opt.getAttribute('data-pr')||'0')});
-  }
-  if(err||!items.length){if(!err)toast('Добавьте хотя бы один товар','err');return;}
+  });
+  if(!items.length){toast('Добавьте хотя бы один товар','err');return;}
   var customer   = document.getElementById('order-customer').value.trim();
   var tgUsername = document.getElementById('order-tg').value.trim().replace(/^@/,'');
   if(!customer){toast('Введите имя заказчика','err');return;}
@@ -1844,7 +1868,7 @@ function submitOrder(){
   }).catch(function(){busy('btn-order',false);toast('Ошибка связи','err');});
 }
 function resetOrder(){
-  document.getElementById('order-list').innerHTML='';orderCount=0;payMethod='';
+  document.getElementById('order-list').innerHTML='';orderCount=0;_visibleItems=0;payMethod='';
   document.getElementById('pay-chk').checked=false;document.getElementById('pay-method').style.display='none';
   document.querySelectorAll('#pay-pills .pill').forEach(function(p){p.classList.remove('sel');});
   document.getElementById('delivery').checked=false;
