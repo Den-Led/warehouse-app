@@ -638,6 +638,19 @@ hr.div{border:none;border-top:1px solid var(--border);margin:14px 0}
   </div>
 </div>
 
+<!-- ══ ПОПАП: редактирование завоза ══════════════════════════ -->
+<div class="popup-overlay hidden" id="pop-arrival-edit">
+  <div class="popup">
+    <div class="popup-handle"></div>
+    <div class="popup-title">Редактировать завоз</div>
+    <div id="arrival-edit-items" style="margin-bottom:14px"></div>
+    <div class="popup-btns">
+      <button class="popup-btn success" onclick="saveArrivalEdit()">Сохранить</button>
+      <button class="popup-btn cancel"  onclick="closePopup('pop-arrival-edit')">Отмена</button>
+    </div>
+  </div>
+</div>
+
 <!-- ══ ПОПАП: редактирование ячейки money ════════════════════ -->
 <div class="popup-overlay hidden" id="pop-money-edit">
   <div class="popup">
@@ -1274,12 +1287,15 @@ function renderArrivalCard(d){
       '<span class="op-goods-sum">'+(d.price?fmt(d.price)+' ₾/шт':'')+'</span>'+
     '</div>';
   }
-  return '<div class="op-card anim">'+
+  var aid = esc(d.id);
+  return '<div class="op-card anim" id="acard-'+aid+'">'+
     '<div class="op-card-head">'+
       '<span class="op-type-badge arrival">Завоз</span>'+
       '<div style="font-size:11px;color:var(--text3)">'+esc(d.date)+'</div>'+
     '</div>'+
-    '<div class="op-goods-list">'+itemsHtml+'</div>'+
+    '<div class="op-goods-list" style="cursor:pointer;text-decoration:underline dotted" onclick="openArrivalEdit(this.dataset.oid)" data-oid="'+aid+'">'+
+      itemsHtml+
+    '</div>'+
     (d.comment?'<div style="font-size:12px;color:var(--text3);margin-top:6px">'+esc(d.comment)+'</div>':'')+
   '</div>';
 }
@@ -2635,6 +2651,109 @@ function saveOrderEdit() {
     if(btn){ btn.disabled=false; btn.textContent='Сохранить'; }
     closePopup('pop-order-edit');
     toast('Заказ обновлён','ok');
+    openOrders();
+  }).catch(function(){
+    if(btn){ btn.disabled=false; btn.textContent='Сохранить'; }
+    toast('Ошибка сохранения','err');
+  });
+}
+
+// ══════════════════════════════════════════════════════════════
+// РЕДАКТИРОВАНИЕ ЗАВОЗА
+// ══════════════════════════════════════════════════════════════
+var _editArrivalId   = null;
+var _editArrivalRows = [];
+
+function openArrivalEdit(arrivalId) {
+  _editArrivalId   = arrivalId;
+  _editArrivalRows = [];
+  var container = document.getElementById('arrival-edit-items');
+  container.innerHTML = '<div style="color:var(--text3);font-size:14px;padding:8px 0">Загрузка…</div>';
+  document.getElementById('pop-arrival-edit').classList.remove('hidden');
+
+  sbGet('journal',
+    'select=id,goods,goods_id,qty,price_per_unit&operation_id=eq.'+encodeURIComponent(arrivalId)+'&type=eq.Завоз')
+    .then(function(rows){
+      _editArrivalRows = rows || [];
+      var stockOpts = buildStockOptsEdit();
+
+      container.innerHTML = _editArrivalRows.map(function(r){
+        return '<div id="arr-edit-row-'+r.id+'" style="margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid var(--border)">'+
+          '<select id="arr-edit-goods-'+r.id+'" style="'+fieldStyle()+';margin-bottom:8px">'+
+            stockOpts+
+          '</select>'+
+          '<div style="display:grid;grid-template-columns:1fr 36px;gap:8px;align-items:end">'+
+            '<div>'+
+              '<label style="font-size:11px;color:var(--text3);display:block;margin-bottom:4px">Количество</label>'+
+              '<div class="qty-stepper">'+
+                '<input type="number" id="arr-edit-qty-'+r.id+'" value="'+r.qty+'" min="0" step="1" style="'+fieldStyle()+';padding-right:53px">'+
+                '<div class="qty-stepper-btns">'+
+                  '<button type="button" class="qty-stepper-btn" onclick="qtyStep(this.dataset.qid,1)" data-qid="arr-edit-qty-'+r.id+'">▲</button>'+
+                  '<button type="button" class="qty-stepper-btn" onclick="qtyStep(this.dataset.qid,-1)" data-qid="arr-edit-qty-'+r.id+'">▼</button>'+
+                '</div>'+
+              '</div>'+
+            '</div>'+
+            '<button onclick="removeArrEditRow(this.dataset.rid)" data-rid="'+r.id+'" style="height:38px;background:transparent;border:1.5px solid var(--border);border-radius:var(--rs);color:var(--text3);font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;align-self:end">×</button>'+
+          '</div>'+
+        '</div>';
+      }).join('');
+
+      // Подставить текущий товар в select
+      _editArrivalRows.forEach(function(r){
+        var sel = document.getElementById('arr-edit-goods-'+r.id);
+        if(!sel) return;
+        for(var i=0; i<sel.options.length; i++){
+          if(sel.options[i].getAttribute('data-name') === r.goods || sel.options[i].value === (r.goods_id||'')){
+            sel.selectedIndex = i; break;
+          }
+        }
+      });
+    })
+    .catch(function(){ container.innerHTML='<div style="color:var(--coral)">Ошибка загрузки</div>'; });
+}
+
+function removeArrEditRow(rowId) {
+  var el = document.getElementById('arr-edit-row-'+rowId);
+  if(el) el.remove();
+  _editArrivalRows = _editArrivalRows.filter(function(r){ return String(r.id) !== String(rowId); });
+}
+
+function saveArrivalEdit() {
+  if(!_editArrivalId) return;
+  var btn = document.querySelector('#pop-arrival-edit .popup-btn.success');
+  if(btn){ btn.disabled=true; btn.textContent='…'; }
+
+  var chain = Promise.resolve();
+
+  _editArrivalRows.forEach(function(r){
+    chain = chain.then(function(){
+      var sel    = document.getElementById('arr-edit-goods-'+r.id);
+      var qtyEl  = document.getElementById('arr-edit-qty-'+r.id);
+      if(!sel || !qtyEl) return; // строка удалена через ×
+
+      var opt      = sel.options[sel.selectedIndex];
+      var newGoods = opt.getAttribute('data-name') || r.goods;
+      var newGoodsId = sel.value || r.goods_id;
+      var newQty   = parseInt(qtyEl.value,10);
+      if(isNaN(newQty) || newQty < 0) newQty = 0;
+
+      // Если qty=0 — удалить строку из journal
+      if(newQty === 0){
+        return sbPatch('journal','id=eq.'+r.id,{qty:0}).then(function(){
+          // помечаем qty=0 для возможной обработки (строку не удаляем из БД, просто qty=0)
+        });
+      }
+
+      return sbPatch('journal','id=eq.'+r.id,{
+        goods: newGoods, goods_id: newGoodsId, qty: newQty
+      });
+    });
+  });
+
+  chain.then(function(){
+    if(btn){ btn.disabled=false; btn.textContent='Сохранить'; }
+    closePopup('pop-arrival-edit');
+    toast('Завоз обновлён','ok');
     openOrders();
   }).catch(function(){
     if(btn){ btn.disabled=false; btn.textContent='Сохранить'; }
