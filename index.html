@@ -2762,20 +2762,14 @@ function saveArrivalEdit() {
         goods: newGoods, goods_id: newGoodsId, qty: newQty
       });
 
-      // 2. Двигаем товар в stock (атомарно через RPC)
+      // 2. Двигаем товар в stock через чтение + запись
       var stockPromise = (delta !== 0)
-        ? sbGet('stock', 'select=id&name=ilike.'+encodeURIComponent(newGoods)+(newGoodsId?'&id=eq.'+encodeURIComponent(newGoodsId):'')+'&limit=1')
+        ? sbGet('stock', 'select=id,available&name=ilike.'+encodeURIComponent(newGoods)+'&limit=1')
             .then(function(rows){
               if(!rows||!rows[0]) return;
-              // delta > 0: товара стало больше → available +
-              // delta < 0: товара стало меньше → available -
-              return fetch(SB_URL+'/rest/v1/rpc/increment_stock_available',{
-                method:'POST', mode:'cors',
-                headers: sbHeaders({'Prefer':'return=minimal'}),
-                body: JSON.stringify({stock_id: rows[0].id, delta: delta})
-              }).then(function(resp){
-                if(!resp.ok) throw new Error('stock RPC '+resp.status);
-              });
+              var s = rows[0];
+              var newAvail = Math.max(0, (Number(s.available)||0) + delta);
+              return sbPatch('stock', 'id=eq.'+s.id, {available: newAvail});
             })
         : Promise.resolve();
 
