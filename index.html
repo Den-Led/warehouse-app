@@ -2739,30 +2739,47 @@ function saveArrivalEdit() {
   var btn = document.querySelector('#pop-arrival-edit .popup-btn.success');
   if(btn){ btn.disabled=true; btn.textContent='…'; }
 
+  // Для каждой строки: считаем дельту qty и двигаем товар в stock
   var chain = Promise.resolve();
 
   _editArrivalRows.forEach(function(r){
     chain = chain.then(function(){
-      var sel    = document.getElementById('arr-edit-goods-'+r.id);
-      var qtyEl  = document.getElementById('arr-edit-qty-'+r.id);
+      var sel   = document.getElementById('arr-edit-goods-'+r.id);
+      var qtyEl = document.getElementById('arr-edit-qty-'+r.id);
       if(!sel || !qtyEl) return; // строка удалена через ×
 
-      var opt      = sel.options[sel.selectedIndex];
-      var newGoods = opt.getAttribute('data-name') || r.goods;
+      var opt        = sel.options[sel.selectedIndex];
+      var newGoods   = opt.getAttribute('data-name') || r.goods;
       var newGoodsId = sel.value || r.goods_id;
-      var newQty   = parseInt(qtyEl.value,10);
+      var newQty     = parseInt(qtyEl.value, 10);
       if(isNaN(newQty) || newQty < 0) newQty = 0;
 
-      // Если qty=0 — удалить строку из journal
-      if(newQty === 0){
-        return sbPatch('journal','id=eq.'+r.id,{qty:0}).then(function(){
-          // помечаем qty=0 для возможной обработки (строку не удаляем из БД, просто qty=0)
-        });
-      }
+      var oldQty  = Number(r.qty) || 0;
+      var delta   = newQty - oldQty; // + если прибавили, - если убрали
 
-      return sbPatch('journal','id=eq.'+r.id,{
+      // 1. Обновить journal
+      var journalPromise = sbPatch('journal', 'id=eq.'+r.id, {
         goods: newGoods, goods_id: newGoodsId, qty: newQty
       });
+
+      // 2. Двигаем товар в stock (атомарно через RPC)
+      var stockPromise = (delta !== 0)
+        ? sbGet('stock', 'select=id&name=ilike.'+encodeURIComponent(newGoods)+(newGoodsId?'&id=eq.'+encodeURIComponent(newGoodsId):'')+'&limit=1')
+            .then(function(rows){
+              if(!rows||!rows[0]) return;
+              // delta > 0: товара стало больше → available +
+              // delta < 0: товара стало меньше → available -
+              return fetch(SB_URL+'/rest/v1/rpc/increment_stock_available',{
+                method:'POST', mode:'cors',
+                headers: sbHeaders({'Prefer':'return=minimal'}),
+                body: JSON.stringify({stock_id: rows[0].id, delta: delta})
+              }).then(function(resp){
+                if(!resp.ok) throw new Error('stock RPC '+resp.status);
+              });
+            })
+        : Promise.resolve();
+
+      return Promise.all([journalPromise, stockPromise]);
     });
   });
 
@@ -2770,6 +2787,7 @@ function saveArrivalEdit() {
     if(btn){ btn.disabled=false; btn.textContent='Сохранить'; }
     closePopup('pop-arrival-edit');
     toast('Завоз обновлён','ok');
+    loadStock();
     openOrders();
   }).catch(function(){
     if(btn){ btn.disabled=false; btn.textContent='Сохранить'; }
