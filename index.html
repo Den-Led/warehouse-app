@@ -2702,11 +2702,27 @@ function openArrivalEdit(arrivalId) {
       _editArrivalRows.forEach(function(r){
         var sel = document.getElementById('arr-edit-goods-'+r.id);
         if(!sel) return;
+        var matched = false;
+        // 1. Точное совпадение по id
         for(var i=0; i<sel.options.length; i++){
-          if(sel.options[i].getAttribute('data-name') === r.goods || sel.options[i].value === (r.goods_id||'')){
-            sel.selectedIndex = i; break;
+          if(sel.options[i].value && String(sel.options[i].value) === String(r.goods_id||'')){
+            sel.selectedIndex = i; matched = true; break;
           }
         }
+        // 2. По data-name точно
+        if(!matched) for(var i=0; i<sel.options.length; i++){
+          if(sel.options[i].getAttribute('data-name') === r.goods){
+            sel.selectedIndex = i; matched = true; break;
+          }
+        }
+        // 3. По data-name без учёта регистра
+        if(!matched) for(var i=0; i<sel.options.length; i++){
+          var nm = (sel.options[i].getAttribute('data-name')||'').toLowerCase();
+          if(nm && nm === (r.goods||'').toLowerCase()){
+            sel.selectedIndex = i; matched = true; break;
+          }
+        }
+        if(!matched) console.warn('openArrivalEdit: товар не найден в select:', r.goods, 'goods_id:', r.goods_id);
       });
     })
     .catch(function(){ container.innerHTML='<div style="color:var(--coral)">Ошибка загрузки</div>'; });
